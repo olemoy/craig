@@ -91,6 +91,9 @@ export async function insertChunk(data: ChunkInsert): Promise<Chunk> {
  * Insert multiple chunks in a batch operation
  * CRITICAL for performance when processing files with many chunks
  *
+ * Automatically splits large batches to stay within SQLite's 999 parameter limit.
+ * Each chunk requires 6 parameters, so max batch size is 150 chunks (900 parameters).
+ *
  * @param chunks - Array of chunk data to insert
  * @returns Array of created chunks
  * @throws DatabaseError if insertion fails
@@ -98,6 +101,22 @@ export async function insertChunk(data: ChunkInsert): Promise<Chunk> {
 export async function insertChunks(chunks: ChunkInsert[]): Promise<Chunk[]> {
   if (chunks.length === 0) {
     return [];
+  }
+
+  // Each chunk needs 6 parameters (file_id, chunk_index, content, start_line, end_line, metadata)
+  // SQLite limit: 999 parameters
+  // 999 / 6 = 166, use 150 to be safe (150 * 6 = 900 parameters)
+  const MAX_BATCH_SIZE = 150;
+
+  // Split into batches if needed
+  if (chunks.length > MAX_BATCH_SIZE) {
+    const results: Chunk[] = [];
+    for (let i = 0; i < chunks.length; i += MAX_BATCH_SIZE) {
+      const batch = chunks.slice(i, i + MAX_BATCH_SIZE);
+      const batchResults = await insertChunks(batch);
+      results.push(...batchResults);
+    }
+    return results;
   }
 
   try {

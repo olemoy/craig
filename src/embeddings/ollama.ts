@@ -46,26 +46,62 @@ export async function embedTextOllama(
 }
 
 /**
- * Generate embeddings for multiple texts using Ollama
- * Processes in batches for efficiency
+ * Generate embeddings for multiple texts using Ollama with proper concurrency limiting
+ *
+ * Maintains exactly maxConcurrent requests in-flight at any time for optimal throughput
+ * without overwhelming the Ollama server.
+ *
+ * Uses a worker pool approach: maintains a pool of workers that process texts from a queue,
+ * ensuring consistent parallelism throughout the operation.
+ *
+ * @param texts - Array of texts to embed
+ * @param config - Ollama configuration
+ * @param onProgress - Optional progress callback (completed, total)
  */
 export async function embedTextsOllama(
   texts: string[],
   config: OllamaConfig,
-  batchSize: number = 10
+  onProgress?: (completed: number, total: number) => void
 ): Promise<number[][]> {
-  const embeddings: number[][] = [];
+  if (texts.length === 0) return [];
 
-  // Process in batches to avoid overwhelming Ollama
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const batch = texts.slice(i, i + batchSize);
-    const batchEmbeddings = await Promise.all(
-      batch.map((text) => embedTextOllama(text, config))
-    );
-    embeddings.push(...batchEmbeddings);
+  const maxConcurrent = config.maxConcurrent ?? 50;
+  const results: (number[] | null)[] = new Array(texts.length).fill(null);
+  let completed = 0;
+  let nextIndex = 0;
+
+  // Worker function that processes texts from the queue
+  const worker = async (): Promise<void> => {
+    while (nextIndex < texts.length) {
+      const index = nextIndex++;
+      const text = texts[index];
+
+      if (text !== undefined) {
+        const embedding = await embedTextOllama(text, config);
+        results[index] = embedding;
+        completed++;
+
+        // Report progress periodically
+        if (onProgress && (completed % 50 === 0 || completed === texts.length)) {
+          onProgress(completed, texts.length);
+        }
+      }
+    }
+  };
+
+  // Start worker pool
+  const workers: Promise<void>[] = [];
+  const workerCount = Math.min(maxConcurrent, texts.length);
+
+  for (let i = 0; i < workerCount; i++) {
+    workers.push(worker());
   }
 
-  return embeddings;
+  // Wait for all workers to complete
+  await Promise.all(workers);
+
+  // Filter out any null values (shouldn't happen, but TypeScript safety)
+  return results.filter((r): r is number[] => r !== null);
 }
 
 /**

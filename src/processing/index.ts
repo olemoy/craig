@@ -214,6 +214,12 @@ export async function processDirectory(
         });
         log(`  → Created ${chunks.length} chunks`);
 
+        // Warn user about large files (hybrid approach)
+        const LARGE_FILE_THRESHOLD = 1000;
+        if (chunks.length > LARGE_FILE_THRESHOLD) {
+          progress?.warnLargeFile(f, chunks.length);
+        }
+
         // Check if file exists for update
         log(`  → Checking if file exists in DB...`);
         const existingFile = await getFileByPath(repo.id, f);
@@ -272,7 +278,15 @@ export async function processDirectory(
           // Generate embeddings using batch processing (much faster!)
           log(`  → Generating ${chunkRecords.length} embeddings...`);
           const texts = chunkRecords.map(r => r.content);
-          const embeddingVectors = await embedTexts(texts);
+
+          // Enable chunk-level progress tracking for large files (hybrid approach)
+          const LARGE_FILE_THRESHOLD = 1000;
+          const embeddingVectors = await embedTexts(
+            texts,
+            chunkRecords.length > LARGE_FILE_THRESHOLD
+              ? (completed, total) => progress?.updateChunkProgress(f, completed, total)
+              : undefined
+          );
 
           const embeddings = chunkRecords.map((chunkRecord, idx) => ({
             chunk_id: chunkRecord.id,

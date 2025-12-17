@@ -18,6 +18,8 @@ export interface ProgressReporter {
   start(totalFiles: number): void;
   updateFile(filePath: string, chunks: number): void;
   updatePhase(phase: ProgressStats['phase'], message?: string): void;
+  warnLargeFile(fileName: string, estimatedChunks: number): void;
+  updateChunkProgress(fileName: string, processedChunks: number, totalChunks: number): void;
   finish(): void;
   log(message: string): void;
   error(message: string): void;
@@ -91,6 +93,20 @@ function createBarReporter(): ProgressReporter {
       }
     },
 
+    warnLargeFile(fileName: string, estimatedChunks: number) {
+      const shortName = fileName.split('/').pop() || fileName;
+      multibar.log(`⚠ Large file detected: ${shortName} (~${estimatedChunks.toLocaleString()} chunks, may take several minutes)\n`);
+    },
+
+    updateChunkProgress(fileName: string, processedChunks: number, totalChunks: number) {
+      const shortName = fileName.split('/').pop() || fileName;
+      const percentage = Math.round((processedChunks / totalChunks) * 100);
+      bar?.update(stats.processedFiles, {
+        chunks: stats.totalChunks + processedChunks,
+        status: `${shortName} - Embedding: ${processedChunks.toLocaleString()}/${totalChunks.toLocaleString()} (${percentage}%)`,
+      });
+    },
+
     finish() {
       if (bar) {
         bar.update(stats.totalFiles, {
@@ -138,6 +154,22 @@ function createVerboseReporter(): ProgressReporter {
       }
     },
 
+    warnLargeFile(fileName: string, estimatedChunks: number) {
+      const time = new Date().toTimeString().split(' ')[0];
+      const shortName = fileName.split('/').pop() || fileName;
+      console.log(`[${time}] ⚠ Large file: ${shortName} (~${estimatedChunks.toLocaleString()} chunks)`);
+    },
+
+    updateChunkProgress(fileName: string, processedChunks: number, totalChunks: number) {
+      // Log every 100 chunks to avoid spam
+      if (processedChunks % 100 === 0 || processedChunks === totalChunks) {
+        const time = new Date().toTimeString().split(' ')[0];
+        const shortName = fileName.split('/').pop() || fileName;
+        const percentage = Math.round((processedChunks / totalChunks) * 100);
+        console.log(`[${time}] Embedding ${shortName}: ${processedChunks.toLocaleString()}/${totalChunks.toLocaleString()} (${percentage}%)`);
+      }
+    },
+
     finish() {
       console.log('✓ Processing complete');
     },
@@ -158,6 +190,8 @@ function createQuietReporter(): ProgressReporter {
     start() {},
     updateFile() {},
     updatePhase() {},
+    warnLargeFile() {},
+    updateChunkProgress() {},
     finish() {},
     log(message: string) {
       // Only show important messages

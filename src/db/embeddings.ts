@@ -122,6 +122,9 @@ export async function insertEmbedding(
  * Insert multiple embeddings in a batch operation
  * CRITICAL for performance when processing many chunks
  *
+ * Automatically splits large batches to stay within SQLite's 999 parameter limit.
+ * Each embedding requires 2 parameters, so max batch size is 450 embeddings (900 parameters).
+ *
  * @param embeddings - Array of embedding data to insert
  * @returns Array of created embeddings
  * @throws DatabaseError if insertion fails
@@ -137,6 +140,22 @@ export async function insertEmbeddings(
   const provider = getEmbeddingProvider();
   for (const embedding of embeddings) {
     validateVector(embedding.embedding, provider.dimensions);
+  }
+
+  // Each embedding needs 2 parameters (chunk_id, vectorString)
+  // SQLite limit: 999 parameters
+  // 999 / 2 = 499, use 450 to be safe (450 * 2 = 900 parameters)
+  const MAX_BATCH_SIZE = 450;
+
+  // Split into batches if needed
+  if (embeddings.length > MAX_BATCH_SIZE) {
+    const results: Embedding[] = [];
+    for (let i = 0; i < embeddings.length; i += MAX_BATCH_SIZE) {
+      const batch = embeddings.slice(i, i + MAX_BATCH_SIZE);
+      const batchResults = await insertEmbeddings(batch);
+      results.push(...batchResults);
+    }
+    return results;
   }
 
   try {

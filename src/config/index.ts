@@ -17,6 +17,7 @@ export interface OllamaConfig {
   baseUrl: string;
   model: string;
   dimensions: number;
+  maxConcurrent?: number; // Max concurrent embedding requests (default: 50)
   options?: {
     temperature?: number;
     [key: string]: any;
