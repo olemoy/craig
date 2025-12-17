@@ -3,10 +3,9 @@ import { existsSync } from 'fs';
 import { processDirectory } from '../../processing/index.js';
 
 export async function ingestRepo(args: string[]) {
-  const fetchModel = args.includes('--fetch-model');
   const pathArg = args.find((a) => !a.startsWith('-'));
   if (!pathArg) {
-    console.error('Usage: craig ingest <path> [--fetch-model]');
+    console.error('Usage: craig ingest <path>');
     return;
   }
   const fullPath = resolve(process.cwd(), pathArg);
@@ -15,14 +14,13 @@ export async function ingestRepo(args: string[]) {
     return;
   }
 
-  if (fetchModel) {
-    try {
-      const { getPipeline } = await import('../../embeddings/cache.js');
-      await getPipeline();
-    } catch (e) {
-      console.error('Failed to fetch model:', e instanceof Error ? e.message : String(e));
-      return;
-    }
+  // Ensure model pipeline is available (will use local ./models if present, otherwise download into ./models)
+  try {
+    const { getPipeline } = await import('../../embeddings/cache.js');
+    await getPipeline();
+  } catch (e) {
+    console.error('Failed to initialize embedding model:', e instanceof Error ? e.message : String(e));
+    return;
   }
 
   console.log('Starting ingest for', fullPath);
