@@ -253,7 +253,7 @@ export async function getEmbeddingByChunk(
 export async function searchSimilarEmbeddings(
   queryVector: number[],
   limit: number = 10,
-  threshold: number = 0
+  _threshold: number = 0
 ): Promise<SimilarityResult[]> {
   // Validate query vector dimensions
   validateVector(queryVector);
@@ -319,7 +319,7 @@ export async function searchSimilarEmbeddingsInRepository(
   queryVector: number[],
   repositoryId: RepositoryId,
   limit: number = 10,
-  threshold: number = 0
+  _threshold: number = 0
 ): Promise<SimilarityResult[]> {
   // Validate query vector dimensions
   validateVector(queryVector);
@@ -437,7 +437,7 @@ export async function getEmbeddingCount(): Promise<number> {
 
     const result = await client.query('SELECT COUNT(*) as count FROM embeddings');
 
-    return parseInt(String(result.rows[0]?.count ?? '0'), 10);
+    return parseInt(String(((result.rows[0] as any)?.count) ?? '0'), 10);
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,

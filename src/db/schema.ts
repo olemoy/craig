@@ -40,7 +40,7 @@ export async function getCurrentSchemaVersion(
       'SELECT MAX(version) as version FROM schema_version'
     );
 
-    const version = result.rows[0]?.version;
+    const version = (result.rows[0] as any)?.version;
     return version !== null && version !== undefined ? parseInt(String(version), 10) : 0;
   } catch (error) {
     // Table might not exist yet
@@ -72,8 +72,8 @@ async function getMigrations(): Promise<Migration[]> {
         continue;
       }
 
-      const version = parseInt(match[1], 10);
-      const description = match[2].replace(/_/g, ' ');
+      const version = parseInt(String(match[1]), 10);
+      const description = String(match[2]).replace(/_/g, ' ');
 
       // Read the SQL file
       const filepath = join(MIGRATIONS_DIR, filename);
@@ -212,11 +212,11 @@ export async function getMigrationHistory(
       'SELECT version, description, applied_at FROM schema_version ORDER BY version'
     );
 
-    return result.rows.map((row) => ({
-      version: parseInt(String(row.version), 10),
-      description: String(row.description),
-      applied_at: new Date(String(row.applied_at)),
-    }));
+    return result.rows.map((row) => { const r = row as any; return {
+      version: parseInt(String(r.version), 10),
+      description: String(r.description),
+      applied_at: new Date(String(r.applied_at)),
+    }; });
   } catch (error) {
     // Table might not exist yet
     return [];

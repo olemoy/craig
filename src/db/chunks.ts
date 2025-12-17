@@ -316,7 +316,7 @@ export async function getChunkCount(fileId: FileId): Promise<number> {
       [fileId]
     );
 
-    return parseInt(String(result.rows[0]?.count ?? '0'), 10);
+    return parseInt(String(((result.rows[0] as any)?.count) ?? '0'), 10);
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,

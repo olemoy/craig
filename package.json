@@ -6,7 +6,12 @@
   "main": "src/db/index.ts",
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cli": "bun src/cli/index.ts",
+    "cli:ingest": "bun src/cli/index.ts ingest",
+    "cli:list": "bun src/cli/index.ts list",
+    "cli:query": "bun src/cli/index.ts query",
+    "cli:db": "bun src/cli/index.ts db"
   },
   "keywords": [
     "semantic-search",

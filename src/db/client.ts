@@ -144,7 +144,7 @@ export async function healthCheck(): Promise<HealthCheckResult> {
        WHERE table_schema = 'public'`
     );
 
-    const tableCount = parseInt(tablesResult.rows[0]?.count ?? '0', 10);
+    const tableCount = parseInt(String(((tablesResult.rows[0] as any)?.count) ?? '0'), 10);
 
     return {
       healthy: true,

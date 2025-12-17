@@ -1,5 +1,5 @@
 import path from 'path';
-import {discoverFiles, statFile} from './discovery';
+import {discoverFiles} from './discovery';
 import {detectFileType} from './type-detector';
 import {readTextFile} from './text-processor';
 import {processBinary} from './binary-processor';
@@ -16,7 +16,7 @@ export async function processDirectory(root: string) {
         console.log('binary', f, bin.size, bin.hash);
       } else {
         const txt = await readTextFile(f);
-        const chunks = chunkText(f, txt, {tokenTarget: DEFAULT_CONFIG.tokenTarget, overlapTokens: DEFAULT_CONFIG.overlapTokens, language: meta.language});
+        const chunks = chunkText(f, txt, {tokenTarget: DEFAULT_CONFIG.tokenTarget, overlapTokens: DEFAULT_CONFIG.overlapTokens, language: meta.language ?? null});
         console.log('text', f, 'chunks', chunks.length);
       }
     } catch (e) {

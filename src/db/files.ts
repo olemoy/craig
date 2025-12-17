@@ -17,7 +17,6 @@ import {
   RepositoryId,
   DatabaseError,
   DatabaseErrorCode,
-  isBinaryFile,
 } from './types.js';
 
 /**
