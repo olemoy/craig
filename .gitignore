@@ -46,3 +46,6 @@ pnpm-debug.log*
 
 # Temporary files
 tmp/
+
+# Configuration
+config.json

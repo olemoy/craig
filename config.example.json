@@ -1,0 +1,17 @@
+{
+  "embedding": {
+    "provider": "transformers",
+    "transformers": {
+      "model": "Xenova/all-MiniLM-L6-v2",
+      "dimensions": 384
+    },
+    "ollama": {
+      "baseUrl": "http://localhost:11434",
+      "model": "nomic-embed-text",
+      "dimensions": 768,
+      "options": {
+        "temperature": 0
+      }
+    }
+  }
+}

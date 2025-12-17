@@ -10,6 +10,7 @@ import { statsCmd } from './commands/stats.js';
 import { modelCmd } from './commands/model.js';
 import { filesCmd } from './commands/files.js';
 import { analyzeCmd } from './commands/analyze.js';
+import { configCmd } from './commands/config.js';
 
 function help() {
   console.log('craig <command> [options]\n');
@@ -26,6 +27,7 @@ function help() {
   console.log('         [--verbose|-v] [--quiet|-q]      Progress display options');
   console.log('  remove <name|id>                      Remove repository');
   console.log('  model <action>                        Model management (fetch)');
+  console.log('  config [show|test]                    Show or test embedding configuration');
   console.log('  db <action>                           Database management (status|vacuum|export|import)');
   console.log('\nProgress Options:');
   console.log('  (default)  Fixed progress bar with real-time stats');
@@ -76,6 +78,10 @@ async function main() {
     }
     if (cmd === 'files') {
       await filesCmd(args.slice(1));
+      return;
+    }
+    if (cmd === 'config') {
+      await configCmd(args.slice(1));
       return;
     }
     if (cmd === 'db') {

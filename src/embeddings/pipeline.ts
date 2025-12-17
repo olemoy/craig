@@ -1,5 +1,8 @@
 import { getPipeline } from './cache';
 import { modelConfig } from './config';
+import { getEmbeddingProvider } from '../config/index.js';
+import { embedTextOllama, embedTextsOllama } from './ollama.js';
+import type { OllamaConfig } from '../config/index.js';
 
 function l2normalize(vec: number[]) {
   const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0) || 1);
@@ -7,6 +10,13 @@ function l2normalize(vec: number[]) {
 }
 
 export async function embedText(text: string): Promise<number[]> {
+  const provider = getEmbeddingProvider();
+
+  if (provider.provider === 'ollama') {
+    return embedTextOllama(text, provider.config as OllamaConfig);
+  }
+
+  // Transformers.js implementation
   const pipe = await getPipeline();
   const result = await pipe(text, { pooling: modelConfig.pooling });
 
@@ -34,6 +44,13 @@ export async function embedText(text: string): Promise<number[]> {
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
+  const provider = getEmbeddingProvider();
+
+  if (provider.provider === 'ollama') {
+    return embedTextsOllama(texts, provider.config as OllamaConfig);
+  }
+
+  // Transformers.js implementation
   const pipe = await getPipeline();
   const result = await pipe(texts, { pooling: modelConfig.pooling });
 
