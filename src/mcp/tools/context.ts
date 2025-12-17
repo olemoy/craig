@@ -6,6 +6,7 @@
 import { getClient } from '../../db/client.js';
 import { getRepositoryByPath, getRepositoryByName, getRepository } from '../../db/repositories.js';
 import type { FileContextResult } from '../types.js';
+import { toRepositoryId } from '../../db/types.js';
 import { createInvalidParamsError, createNotFoundError } from '../errors.js';
 
 export interface GetFileContextArgs {
@@ -24,11 +25,14 @@ export async function getFileContext(args: GetFileContextArgs): Promise<FileCont
     throw createInvalidParamsError('repository parameter is required and must not be empty');
   }
 
-  // Try to find repository by name, path, or ID
+  // Try to find repository by name, path, or UUID
   let repo = await getRepositoryByName(repository);
   if (!repo) repo = await getRepositoryByPath(repository);
-  if (!repo && /^\d+$/.test(repository)) {
-    repo = await getRepository(parseInt(repository, 10) as any);
+  if (!repo) {
+    const repoId = toRepositoryId(repository);
+    if (repoId) {
+      repo = await getRepository(repoId);
+    }
   }
 
   if (!repo) {

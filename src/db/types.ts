@@ -12,9 +12,10 @@
 
 /**
  * Branded type for Repository IDs
+ * Uses UUIDs to prevent ID collisions
  * Prevents accidental mixing of different ID types
  */
-export type RepositoryId = number & { readonly __brand: 'RepositoryId' };
+export type RepositoryId = string & { readonly __brand: 'RepositoryId' };
 
 /**
  * Branded type for File IDs
@@ -291,4 +292,19 @@ export function isValidVectorDimension(vector: number[]): boolean {
  */
 export function isValidFileType(fileType: string): fileType is FileType {
   return fileType === 'text' || fileType === 'code' || fileType === 'binary';
+}
+
+/**
+ * Check if a string is a valid UUID v4 format
+ */
+export function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+/**
+ * Validate and cast a string to RepositoryId if it's a valid UUID
+ */
+export function toRepositoryId(str: string): RepositoryId | null {
+  return isValidUUID(str) ? (str as RepositoryId) : null;
 }

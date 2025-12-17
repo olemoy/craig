@@ -3,6 +3,7 @@ import { getRepositoryByName } from '../../db/repositories.js';
 import { processDirectory } from '../../processing/index.js';
 import { createProgressReporter } from '../progress.js';
 import type { RepositoryId } from '../../db/types.js';
+import { toRepositoryId } from '../../db/types.js';
 
 export async function updateCmd(args: string[]) {
   const target = args[0];
@@ -19,11 +20,14 @@ export async function updateCmd(args: string[]) {
   const progressMode = verbose ? 'verbose' : quiet ? 'quiet' : 'progress';
   const progress = createProgressReporter(progressMode);
 
-  // Try to find repository by name, path, or ID
+  // Try to find repository by name, path, or UUID
   let repo = await getRepositoryByName(target);
   if (!repo) repo = await getRepositoryByPath(target);
-  if (!repo && /^\d+$/.test(target)) {
-    repo = await getRepository(parseInt(target, 10) as RepositoryId);
+  if (!repo) {
+    const repoId = toRepositoryId(target);
+    if (repoId) {
+      repo = await getRepository(repoId);
+    }
   }
 
   if (!repo) {

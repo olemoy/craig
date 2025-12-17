@@ -1,6 +1,7 @@
 import { query } from '../../mcp/tools/search.js';
 import { getRepositoryByName, getRepositoryByPath, getRepository } from '../../db/repositories.js';
 import type { RepositoryId } from '../../db/types.js';
+import { toRepositoryId } from '../../db/types.js';
 
 export async function queryRepo(args: string[]) {
   if (!args.length) {
@@ -20,11 +21,14 @@ export async function queryRepo(args: string[]) {
     return;
   }
 
-  // Look up repository by name, path, or ID
+  // Look up repository by name, path, or UUID
   let repo = await getRepositoryByName(repoParam);
   if (!repo) repo = await getRepositoryByPath(repoParam);
-  if (!repo && /^\d+$/.test(repoParam)) {
-    repo = await getRepository(parseInt(repoParam, 10) as RepositoryId);
+  if (!repo) {
+    const repoId = toRepositoryId(repoParam);
+    if (repoId) {
+      repo = await getRepository(repoId);
+    }
   }
 
   if (!repo) {

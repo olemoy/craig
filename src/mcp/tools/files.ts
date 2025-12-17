@@ -6,6 +6,7 @@
 import { getClient } from '../../db/client.js';
 import { getRepositoryByName, getRepositoryByPath, getRepository } from '../../db/repositories.js';
 import type { RepositoryId } from '../../db/types.js';
+import { toRepositoryId } from '../../db/types.js';
 import { createInvalidParamsError, createNotFoundError } from '../errors.js';
 
 export interface ListFilesArgs {
@@ -35,11 +36,14 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
     throw createInvalidParamsError('repository parameter is required');
   }
 
-  // Look up repository
+  // Look up repository by name, path, or UUID
   let repo = await getRepositoryByName(repository);
   if (!repo) repo = await getRepositoryByPath(repository);
-  if (!repo && /^\d+$/.test(repository)) {
-    repo = await getRepository(parseInt(repository, 10) as RepositoryId);
+  if (!repo) {
+    const repoId = toRepositoryId(repository);
+    if (repoId) {
+      repo = await getRepository(repoId);
+    }
   }
 
   if (!repo) {
