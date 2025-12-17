@@ -225,6 +225,19 @@ console.log(health);
 - **WP4**: CLI Tool - Command-line interface for repository ingestion and search
 - **WP5**: MCP Server - Model Context Protocol server for Claude integration
 
+### WP2: File Processing Summary
+
+Workpackage 2 provides a minimal file-processing pipeline that implements discovery, file type detection, text and binary processing, and chunking suitable for downstream embedding generation (WP3). The implementation includes:
+
+- discovery: repository traversal (respects .git via simple heuristics)
+- type detection: extension and content-based classification (code/text/binary)
+- text processing: UTF-8 normalization and newline normalization
+- binary processing: size and sha256 metadata extraction
+- chunker: heuristic token-target chunking with overlap and chunk-level hashing
+- orchestrator: simple CLI entry to run processing over a directory
+
+These modules are intentionally minimal and intended to be expanded during subsequent work packages.
+
 ### Acceptance Criteria - Status
 
 | Criterion | Status |
