@@ -7,6 +7,7 @@ import { dbCommand } from './commands/db.js';
 import { updateCmd } from './commands/update.js';
 import { removeCmd } from './commands/remove.js';
 import { statsCmd } from './commands/stats.js';
+import { modelCmd } from './commands/model.js';
 
 function help() {
   console.log('craig <command> [options]\n');
@@ -35,6 +36,10 @@ async function main() {
     }
     if (cmd === 'query') {
       await queryRepo(args.slice(1));
+      return;
+    }
+    if (cmd === 'model') {
+      await modelCmd(args.slice(1));
       return;
     }
     if (cmd === 'update') {
