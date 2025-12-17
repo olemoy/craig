@@ -53,8 +53,8 @@ function validateFileData(data: FileInsert | FileUpdate): void {
 
   // Binary files SHOULD have binary_metadata
   if (data.file_type === 'binary' && !data.binary_metadata) {
-    console.warn(
-      `Binary file '${('file_path' in data) ? data.file_path : 'unknown'}' should include binary_metadata`
+    console.error(
+      `Warning: Binary file '${('file_path' in data) ? data.file_path : 'unknown'}' should include binary_metadata`
     );
   }
 
@@ -64,8 +64,8 @@ function validateFileData(data: FileInsert | FileUpdate): void {
     data.binary_metadata !== null &&
     data.binary_metadata !== undefined
   ) {
-    console.warn(
-      `Text/code file '${('file_path' in data) ? data.file_path : 'unknown'}' should not have binary_metadata`
+    console.error(
+      `Warning: Text/code file '${('file_path' in data) ? data.file_path : 'unknown'}' should not have binary_metadata`
     );
   }
 }

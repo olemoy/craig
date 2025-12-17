@@ -68,7 +68,7 @@ async function getMigrations(): Promise<Migration[]> {
       // Parse filename: 000_migration_tracker.sql -> version=0, description=migration_tracker
       const match = filename.match(/^(\d{3})_(.+)\.sql$/);
       if (!match) {
-        console.warn(`Skipping invalid migration filename: ${filename}`);
+        console.error(`Warning: Skipping invalid migration filename: ${filename}`);
         continue;
       }
 
@@ -151,7 +151,7 @@ export async function runMigrations(client: PGlite): Promise<void> {
     const migrations = await getMigrations();
 
     if (migrations.length === 0) {
-      console.warn('No migrations found in', MIGRATIONS_DIR);
+      console.error('Warning: No migrations found in', MIGRATIONS_DIR);
       return;
     }
 
@@ -173,18 +173,18 @@ export async function runMigrations(client: PGlite): Promise<void> {
       return; // All migrations already applied
     }
 
-    console.log(
+    console.error(
       `Applying ${pendingMigrations.length} pending migration(s)...`
     );
 
     for (const migration of pendingMigrations) {
-      console.log(
+      console.error(
         `  Applying migration ${migration.version}: ${migration.description}`
       );
       await applyMigration(client, migration);
     }
 
-    console.log('All migrations applied successfully');
+    console.error('All migrations applied successfully');
   } catch (error) {
     if (error instanceof DatabaseError) {
       throw error;

@@ -65,15 +65,15 @@ export async function getPipeline() {
       const candidates = [candidate1, candidate3, candidate2];
       for (const c of candidates) {
         if (fs.existsSync(c) && !fs.existsSync(localTarget)) {
-          console.log(`Copying cached model from ${c} to ${localTarget}`);
+          console.error(`Copying cached model from ${c} to ${localTarget}`);
           await copyDir(c, localTarget);
-          console.log(`Model cached to ${localTarget}`);
+          console.error(`Model cached to ${localTarget}`);
           break;
         }
       }
     } catch (e) {
       // Non-fatal
-      console.warn('Could not copy cached model into ./models:', e);
+      console.error('Warning: Could not copy cached model into ./models:', e);
     }
 
       initializing = null;
