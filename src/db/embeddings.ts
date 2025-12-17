@@ -277,10 +277,9 @@ export async function searchSimilarEmbeddings(
        FROM embeddings e
        JOIN chunks c ON c.id = e.chunk_id
        JOIN files f ON f.id = c.file_id
-       WHERE 1 - (e.embedding <=> $1::vector) >= $2
        ORDER BY e.embedding <=> $1::vector
-       LIMIT $3`,
-      [vectorString, threshold, limit]
+       LIMIT $2`,
+      [vectorString, limit]
     );
 
     return result.rows.map(mapToSimilarityResult);
@@ -329,10 +328,9 @@ export async function searchSimilarEmbeddingsInRepository(
        JOIN chunks c ON c.id = e.chunk_id
        JOIN files f ON f.id = c.file_id
        WHERE f.repository_id = $2
-         AND 1 - (e.embedding <=> $1::vector) >= $3
        ORDER BY e.embedding <=> $1::vector
-       LIMIT $4`,
-      [vectorString, repositoryId, threshold, limit]
+       LIMIT $3`,
+      [vectorString, repositoryId, limit]
     );
 
     return result.rows.map(mapToSimilarityResult);
