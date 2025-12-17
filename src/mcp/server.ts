@@ -17,6 +17,7 @@ import { analyzeCodebase, analyzeCodebaseTool } from './tools/analyze.js';
 import { findSimilar, findSimilarTool } from './tools/similar.js';
 import { listRepositories, listRepositoriesTool } from './tools/list.js';
 import { listFiles, listFilesTool } from './tools/files.js';
+import { getDirectories, getDirectoriesTool } from './tools/directories.js';
 import { getStats, getStatsTool } from './tools/stats.js';
 import { handleError } from './errors.js';
 
@@ -40,6 +41,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       queryTool,
       listRepositoriesTool,
       listFilesTool,
+      getDirectoriesTool,
       getStatsTool,
       getFileContextTool,
       analyzeCodebaseTool,
@@ -54,85 +56,97 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
     switch (name) {
-      case 'query': {
+      case 'search': {
         const results = await query(args as any);
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(results, null, 2),
+              text: JSON.stringify(results),
             },
           ],
         };
       }
 
-      case 'list_repositories': {
+      case 'repos': {
         const results = await listRepositories();
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(results, null, 2),
+              text: JSON.stringify(results),
             },
           ],
         };
       }
 
-      case 'list_files': {
+      case 'files': {
         const result = await listFiles(args as any);
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(result),
             },
           ],
         };
       }
 
-      case 'get_stats': {
+      case 'directories': {
+        const result = await getDirectories(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+
+      case 'stats': {
         const result = await getStats(args as any);
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(result),
             },
           ],
         };
       }
 
-      case 'get_file_context': {
+      case 'read_file': {
         const result = await getFileContext(args as any);
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(result),
             },
           ],
         };
       }
 
-      case 'analyze_codebase': {
+      case 'analyze': {
         const result = await analyzeCodebase(args as any);
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(result),
             },
           ],
         };
       }
 
-      case 'find_similar': {
+      case 'similar': {
         const results = await findSimilar(args as any);
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(results, null, 2),
+              text: JSON.stringify(results),
             },
           ],
         };

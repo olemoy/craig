@@ -67,28 +67,25 @@ export async function getFileContext(args: GetFileContextArgs): Promise<FileCont
 
   return {
     repository: file.repository_name,
-    repositoryId: file.repository_id,
     filePath: file.file_path,
     fileType: file.file_type,
     language: file.language,
     content: file.file_type === 'binary'
-      ? '(Binary file - use binaryMetadata for details)'
+      ? '(Binary file)'
       : file.content,
     size: file.size_bytes,
-    lastModified: file.last_modified ? new Date(file.last_modified) : null,
-    binaryMetadata: file.binary_metadata,
   };
 }
 
 export const getFileContextTool = {
-  name: 'get_file_context',
-  description: 'Retrieve the complete content of a specific file from a repository. Returns full file content for text/code files, or metadata for binary files.',
+  name: 'read_file',
+  description: 'Read complete file content from repository',
   inputSchema: {
     type: 'object',
     properties: {
       filePath: {
         type: 'string',
-        description: 'Path to the file within the repository',
+        description: 'File path in repository',
       },
       repository: {
         type: 'string',

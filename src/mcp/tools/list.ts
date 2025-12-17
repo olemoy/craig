@@ -25,18 +25,15 @@ export async function listRepositories(): Promise<RepositoryInfo[]> {
   `);
 
   return result.rows.map((row: any) => ({
-    id: row.id,
     name: row.name,
     path: row.path,
-    commitSha: row.commit_sha,
-    ingestedAt: new Date(row.ingested_at),
     fileCount: parseInt(row.file_count, 10),
   }));
 }
 
 export const listRepositoriesTool = {
-  name: 'list_repositories',
-  description: 'List all repositories that have been indexed and are available for searching.',
+  name: 'repos',
+  description: 'List all indexed repositories',
   inputSchema: {
     type: 'object',
     properties: {},

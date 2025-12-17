@@ -38,12 +38,21 @@ export async function processDirectory(
       metadata: null,
     });
     const msg = `Created repository: ${repo.name} (id: ${repo.id})`;
-    progress?.log(msg) ?? console.log(msg);
+    if (progress) {
+      progress.log(msg);
+    } else {
+      console.log(msg);
+    }
   } else {
     const msg1 = `Existing repository found: ${repo.name} (id: ${repo.id})`;
     const msg2 = `Performing delta ingestion (only processing changes)...`;
-    progress?.log(msg1) ?? console.log(msg1);
-    progress?.log(msg2) ?? console.log(msg2);
+    if (progress) {
+      progress.log(msg1);
+      progress.log(msg2);
+    } else {
+      console.log(msg1);
+      console.log(msg2);
+    }
     isDeltaIngestion = true;
   }
 
@@ -57,7 +66,11 @@ export async function processDirectory(
     const delta = await analyzeDelta(repo, discoveredFiles);
 
     const deltaMsg = `Delta Analysis:\n  📄 Unchanged: ${delta.unchanged.length}\n  ✏️  Modified:  ${delta.toUpdate.length}\n  ➕ New:       ${delta.toAdd.length}\n  ➖ Deleted:   ${delta.toDelete.length}`;
-    progress?.log(deltaMsg) ?? console.log(deltaMsg);
+    if (progress) {
+      progress.log(deltaMsg);
+    } else {
+      console.log(deltaMsg);
+    }
 
     // Delete removed files
     if (delta.toDelete.length > 0) {
@@ -81,7 +94,11 @@ export async function processDirectory(
 
     if (filesToProcess.length === 0) {
       const msg = '✓ Repository is up to date, no changes detected.';
-      progress?.log(msg) ?? console.log(msg);
+      if (progress) {
+        progress.log(msg);
+      } else {
+        console.log(msg);
+      }
       await updateRepository({
         id: repo.id,
         metadata: { last_checked: new Date().toISOString() },
@@ -90,7 +107,11 @@ export async function processDirectory(
     }
 
     const procMsg = `Processing ${filesToProcess.length} changed files...`;
-    progress?.log(procMsg) ?? console.log(procMsg);
+    if (progress) {
+      progress.log(procMsg);
+    } else {
+      console.log(procMsg);
+    }
   }
 
   const files = filesToProcess;
@@ -233,7 +254,11 @@ export async function processDirectory(
       }
     } catch (e) {
       const errMsg = `Error processing ${f}: ${e}`;
-      progress?.error(errMsg) ?? console.error(errMsg);
+      if (progress) {
+        progress.error(errMsg);
+      } else {
+        console.error(errMsg);
+      }
     }
   }
 

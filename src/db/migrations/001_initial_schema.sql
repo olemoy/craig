@@ -6,9 +6,10 @@
 -- REPOSITORIES TABLE
 -- =============================================================================
 -- Stores metadata about code repositories being indexed
+-- Uses UUID for id to prevent collisions and enable distributed operation
 
 CREATE TABLE repositories (
-  id SERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY,
   name TEXT NOT NULL,
   path TEXT NOT NULL UNIQUE,
   commit_sha TEXT,
@@ -29,7 +30,7 @@ CREATE TABLE repositories (
 
 CREATE TABLE files (
   id SERIAL PRIMARY KEY,
-  repository_id INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+  repository_id UUID NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
   file_path TEXT NOT NULL,
   file_type TEXT NOT NULL CHECK (file_type IN ('text', 'code', 'binary')),
   content TEXT,              -- NULL for binary files

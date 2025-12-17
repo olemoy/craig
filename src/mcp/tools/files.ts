@@ -11,26 +11,17 @@ import { createInvalidParamsError, createNotFoundError } from '../errors.js';
 
 export interface ListFilesArgs {
   repository: string;
-}
-
-export interface FileInfo {
-  filePath: string;
-  relativePath: string;
-  fileType: 'code' | 'text' | 'binary';
-  language: string | null;
-  sizeBytes: number;
+  path?: string;
 }
 
 export interface ListFilesResult {
   repository: string;
-  repositoryId: number;
-  repositoryPath: string;
   fileCount: number;
-  files: FileInfo[];
+  files: string[];
 }
 
 export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
-  const { repository } = args;
+  const { repository, path } = args;
 
   if (!repository || repository.trim().length === 0) {
     throw createInvalidParamsError('repository parameter is required');
@@ -50,44 +41,50 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
     throw createNotFoundError(`Repository '${repository}' not found`);
   }
 
-  // Get all files
+  // Get all files, optionally filtered by path
   const client = await getClient();
-  const result = await client.query(
-    `SELECT file_path, file_type, language, size_bytes
-     FROM files
-     WHERE repository_id = $1
-     ORDER BY file_path`,
-    [repo.id]
-  );
-
   const repoPath = repo.path.endsWith('/') ? repo.path : repo.path + '/';
 
-  const files: FileInfo[] = result.rows.map((row: any) => ({
-    filePath: row.file_path,
-    relativePath: row.file_path.replace(repoPath, ''),
-    fileType: row.file_type,
-    language: row.language,
-    sizeBytes: parseInt(row.size_bytes, 10),
-  }));
+  let sql = `SELECT file_path FROM files WHERE repository_id = $1`;
+  const params: any[] = [repo.id];
+
+  // Filter by path if provided
+  if (path) {
+    const filterPath = path.startsWith('/') ? path.slice(1) : path;
+    const fullFilterPath = repoPath + filterPath;
+    sql += ` AND file_path LIKE $2`;
+    params.push(fullFilterPath + '%');
+  }
+
+  sql += ` ORDER BY file_path`;
+
+  const result = await client.query(sql, params);
+
+  // Convert absolute paths to relative paths
+  const files: string[] = result.rows.map((row: any) =>
+    row.file_path.replace(repoPath, '')
+  );
 
   return {
     repository: repo.name,
-    repositoryId: repo.id,
-    repositoryPath: repo.path,
     fileCount: files.length,
     files,
   };
 }
 
 export const listFilesTool = {
-  name: 'list_files',
-  description: 'List all files in a repository with metadata (type, language, size). Useful for understanding repository structure and file organization.',
+  name: 'files',
+  description: 'List files in repository as relative paths',
   inputSchema: {
     type: 'object',
     properties: {
       repository: {
         type: 'string',
-        description: 'Repository name, path, or numeric ID',
+        description: 'Repository name, path, or ID',
+      },
+      path: {
+        type: 'string',
+        description: 'Optional: filter to files under this path (e.g., "src/", "docs/")',
       },
     },
     required: ['repository'],

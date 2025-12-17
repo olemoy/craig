@@ -12,7 +12,9 @@ export async function listRepos(args: string[]) {
     }
     console.log('Known repositories:');
     for (const r of repos) {
-      console.log(`- ${r.name} (${r.path})`);
+      console.log(`- ${r.name}`);
+      console.log(`  Path: ${r.path}`);
+      console.log(`  ID:   ${r.id}`);
     }
   } catch (err) {
     console.error('List failed:', err instanceof Error ? err.message : String(err));

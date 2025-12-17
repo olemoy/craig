@@ -84,6 +84,19 @@ export async function insertFile(data: FileInsert): Promise<File> {
   try {
     const client = await getClient();
 
+    const params = [
+      data.repository_id,
+      data.file_path,
+      data.file_type,
+      data.content,
+      data.binary_metadata ? JSON.stringify(data.binary_metadata) : null,
+      data.content_hash,
+      data.size_bytes ?? null,
+      data.last_modified ?? null,
+      data.language ?? null,
+      data.metadata ? JSON.stringify(data.metadata) : null,
+    ];
+
     const result = await client.query(
       `INSERT INTO files (
         repository_id, file_path, file_type, content, binary_metadata,
@@ -91,21 +104,13 @@ export async function insertFile(data: FileInsert): Promise<File> {
       )
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [
-        data.repository_id,
-        data.file_path,
-        data.file_type,
-        data.content,
-        data.binary_metadata ? JSON.stringify(data.binary_metadata) : null,
-        data.content_hash,
-        data.size_bytes ?? null,
-        data.last_modified ?? null,
-        data.language ?? null,
-        data.metadata ? JSON.stringify(data.metadata) : null,
-      ]
+      params
     );
 
     if (result.rows.length === 0) {
+      console.error('INSERT returned no rows for file:', data.file_path);
+      console.error('Repository ID:', data.repository_id);
+      console.error('Result:', result);
       throw new DatabaseError(
         DatabaseErrorCode.QUERY_FAILED,
         'Failed to insert file: no rows returned'

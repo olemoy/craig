@@ -79,34 +79,33 @@ export async function findSimilar(args: FindSimilarArgs): Promise<SimilarCodeRes
 
   return result.rows.map((row: any) => ({
     repository: row.repository_name,
-    repositoryId: row.repository_id,
     filePath: row.file_path,
     fileType: row.file_type,
     language: row.language,
     content: row.file_type === 'binary'
-      ? '(Binary file - metadata only)'
+      ? '(Binary file)'
       : row.content,
     similarity: parseFloat(row.similarity),
   }));
 }
 
 export const findSimilarTool = {
-  name: 'find_similar',
-  description: 'Find code snippets similar to a given code example. Useful for finding duplicate code, similar patterns, or alternative implementations.',
+  name: 'similar',
+  description: 'Find code similar to given snippet',
   inputSchema: {
     type: 'object',
     properties: {
       code: {
         type: 'string',
-        description: 'Code snippet to find similar code for',
+        description: 'Code snippet to match',
       },
       repository: {
         type: 'string',
-        description: 'Optional: Filter results to a specific repository (name or path)',
+        description: 'Optional: repository filter',
       },
       limit: {
         type: 'number',
-        description: 'Maximum number of results to return (default: 10)',
+        description: 'Max results (default: 10)',
         default: 10,
       },
     },

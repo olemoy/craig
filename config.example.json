@@ -7,8 +7,8 @@
     },
     "ollama": {
       "baseUrl": "http://localhost:11434",
-      "model": "nomic-embed-text",
-      "dimensions": 768,
+      "model": "all-minilm",
+      "dimensions": 384,
       "options": {
         "temperature": 0
       }

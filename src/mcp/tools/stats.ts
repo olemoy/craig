@@ -13,17 +13,13 @@ export interface GetStatsArgs {
   repository: string;
 }
 
-export interface RepositoryStats {
+export interface StatsResult {
   repository: string;
-  repositoryId: number;
-  repositoryPath: string;
-  commitSha: string | null;
-  ingestedAt: string | Date;
   fileCount: number;
   chunkCount: number;
 }
 
-export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
+export async function getStats(args: GetStatsArgs): Promise<StatsResult> {
   const { repository } = args;
 
   if (!repository || repository.trim().length === 0) {
@@ -54,24 +50,20 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
 
   return {
     repository: repo.name,
-    repositoryId: repo.id,
-    repositoryPath: repo.path,
-    commitSha: repo.commit_sha,
-    ingestedAt: repo.ingested_at,
     fileCount: files.length,
     chunkCount,
   };
 }
 
 export const getStatsTool = {
-  name: 'get_stats',
-  description: 'Get statistics for a repository including file count, chunk count, and ingestion metadata.',
+  name: 'stats',
+  description: 'Get repository statistics (files, chunks, embeddings)',
   inputSchema: {
     type: 'object',
     properties: {
       repository: {
         type: 'string',
-        description: 'Repository name, path, or numeric ID',
+        description: 'Repository name, path, or ID',
       },
     },
     required: ['repository'],

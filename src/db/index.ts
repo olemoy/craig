@@ -41,6 +41,7 @@ export {
   insertRepository,
   getRepository,
   getRepositoryByPath,
+  getRepositoryByName,
   listRepositories,
   updateRepository,
   deleteRepository,

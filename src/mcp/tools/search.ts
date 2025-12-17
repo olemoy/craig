@@ -90,7 +90,6 @@ export async function query(args: QueryArgs): Promise<SearchResult[]> {
 
   return result.rows.map((row: any) => ({
     repository: row.repository_name,
-    repositoryId: row.repository_id,
     filePath: row.file_path,
     fileType: row.file_type,
     language: row.language,
@@ -98,34 +97,32 @@ export async function query(args: QueryArgs): Promise<SearchResult[]> {
       ? '(Binary file - metadata only)'
       : row.content,
     similarity: parseFloat(row.similarity),
-    chunkIndex: parseInt(row.chunk_index, 10),
-    metadata: row.metadata,
   }));
 }
 
 export const queryTool = {
-  name: 'query',
-  description: 'Semantically search across code repositories using natural language queries. Returns the most relevant code chunks ranked by similarity.',
+  name: 'search',
+  description: 'Semantic code search using natural language queries',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'Natural language search query (e.g., "authentication logic", "error handling for API calls")',
+        description: 'Natural language query (e.g., "auth logic", "error handling")',
       },
       repository: {
         type: 'string',
-        description: 'Optional: Filter results to a specific repository (name or path)',
+        description: 'Optional: repository name/path filter',
       },
       limit: {
         type: 'number',
-        description: 'Maximum number of results to return (default: 10)',
+        description: 'Max results (default: 10)',
         default: 10,
       },
       fileType: {
         type: 'string',
         enum: ['code', 'text', 'binary'],
-        description: 'Optional: Filter by file type',
+        description: 'Optional: filter by file type',
       },
     },
     required: ['query'],

@@ -14,6 +14,8 @@ import {
   DatabaseErrorCode,
   HealthCheckResult,
 } from './types.js';
+import { mkdir } from 'fs/promises';
+import { dirname } from 'path';
 
 /**
  * Singleton database client instance
@@ -51,6 +53,12 @@ export async function initializeClient(
       autoMigrate = true,
     } = options;
 
+    // Ensure parent directory exists (PGlite can't create nested directories)
+    if (dataDir !== ':memory:') {
+      const parentDir = dirname(dataDir);
+      await mkdir(parentDir, { recursive: true });
+    }
+
     // Create PGlite instance with vector extension
     const client = new PGlite(dataDir, {
       extensions: { vector },
@@ -69,6 +77,7 @@ export async function initializeClient(
 
     return client;
   } catch (error) {
+    console.error('Database initialization error:', error);
     throw new DatabaseError(
       DatabaseErrorCode.CONNECTION_FAILED,
       'Failed to initialize database client',
