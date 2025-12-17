@@ -23,22 +23,35 @@ export async function getPipeline() {
   if (pipelineInstance) return pipelineInstance;
   if (initializing) return initializing;
   initializing = (async () => {
-    // Prefer local model under ./models/{modelId} if present
-    const localModelDir = `./models/${modelConfig.modelId.replace(/\//g, '_')}`;
-    const fs = await import('fs');
-    if (fs.existsSync(localModelDir)) {
-      console.log(`Using local model at ${localModelDir}`);
-      const transformers = await import('@huggingface/transformers');
-      pipelineInstance = await transformers.pipeline('feature-extraction', localModelDir);
-      initializing = null;
-      return pipelineInstance;
+    // Suppress transformers.js console output (it goes to stdout/stderr)
+    const originalError = console.error;
+    const isMcpMode = process.env.CRAIG_MCP_MODE === 'true';
+
+    if (isMcpMode) {
+      // In MCP mode, redirect transformers output to stderr only
+      console.error = (...args) => {
+        // Only log to stderr, not to MCP stdout
+        process.stderr.write(args.join(' ') + '\n');
+      };
     }
 
-    // Otherwise set TRANSFORMERS_CACHE to ./models to cache downloads
-    console.log(`Local model not found. Downloading ${modelConfig.modelId} into ./models (this may take a while)`);
-    process.env.TRANSFORMERS_CACHE = process.env.TRANSFORMERS_CACHE ?? './models';
-    const transformers = await import('@huggingface/transformers');
-    pipelineInstance = await transformers.pipeline('feature-extraction', modelConfig.modelId);
+    try {
+      // Prefer local model under ./models/{modelId} if present
+      const localModelDir = `./models/${modelConfig.modelId.replace(/\//g, '_')}`;
+      const fs = await import('fs');
+      if (fs.existsSync(localModelDir)) {
+        console.error(`Using local model at ${localModelDir}`);
+        const transformers = await import('@huggingface/transformers');
+        pipelineInstance = await transformers.pipeline('feature-extraction', localModelDir);
+        initializing = null;
+        return pipelineInstance;
+      }
+
+      // Otherwise set TRANSFORMERS_CACHE to ./models to cache downloads
+      console.error(`Local model not found. Downloading ${modelConfig.modelId} into ./models (this may take a while)`);
+      process.env.TRANSFORMERS_CACHE = process.env.TRANSFORMERS_CACHE ?? './models';
+      const transformers = await import('@huggingface/transformers');
+      pipelineInstance = await transformers.pipeline('feature-extraction', modelConfig.modelId);
 
     // After pipeline is ready, try to detect where transformers cached the model and copy it into ./models for reproducibility
     try {
@@ -63,8 +76,14 @@ export async function getPipeline() {
       console.warn('Could not copy cached model into ./models:', e);
     }
 
-    initializing = null;
-    return pipelineInstance;
+      initializing = null;
+      return pipelineInstance;
+    } finally {
+      // Restore original console.error
+      if (isMcpMode) {
+        console.error = originalError;
+      }
+    }
   })();
   return initializing;
 }

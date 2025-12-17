@@ -149,6 +149,38 @@ export async function getRepositoryByPath(
 }
 
 /**
+ * Get repository by name
+ *
+ * @param name - Repository name
+ * @returns The repository or null if not found
+ * @throws DatabaseError if query fails
+ */
+export async function getRepositoryByName(
+  name: string
+): Promise<Repository | null> {
+  try {
+    const client = await getClient();
+
+    const result = await client.query(
+      'SELECT * FROM repositories WHERE name = $1',
+      [name]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return mapToRepository(result.rows[0]);
+  } catch (error) {
+    throw new DatabaseError(
+      DatabaseErrorCode.QUERY_FAILED,
+      `Failed to get repository with name '${name}'`,
+      error
+    );
+  }
+}
+
+/**
  * List all repositories
  *
  * @returns Array of all repositories

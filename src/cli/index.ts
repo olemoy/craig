@@ -8,14 +8,22 @@ import { updateCmd } from './commands/update.js';
 import { removeCmd } from './commands/remove.js';
 import { statsCmd } from './commands/stats.js';
 import { modelCmd } from './commands/model.js';
+import { filesCmd } from './commands/files.js';
 
 function help() {
   console.log('craig <command> [options]\n');
   console.log('Commands:');
-  console.log('  ingest <path> --name <name>   Ingest a repository');
-  console.log('  list [--format json|table]    List known repositories');
-  console.log('  query <question> --repo <name> Query a repository (stub)');
-  console.log('  db <action>                   Database management (status|vacuum|export|import)');
+  console.log('  ingest <path> --name <name>           Ingest a repository');
+  console.log('  list [--format json|table]            List known repositories');
+  console.log('  query <question> --repo <name|id>     Semantic search in repository');
+  console.log('        [--limit <n>]                     (default limit: 5)');
+  console.log('  files <name|id> [--tree]              List files in repository');
+  console.log('  stats <name|id>                       Repository statistics');
+  console.log('  update <name|id>                      Re-ingest repository');
+  console.log('  remove <name|id>                      Remove repository');
+  console.log('  model <action>                        Model management (fetch)');
+  console.log('  db <action>                           Database management (status|vacuum|export|import)');
+  console.log('\nNote: Most commands accept repository name, full path, or numeric ID');
 }
 
 async function main() {
@@ -52,6 +60,10 @@ async function main() {
     }
     if (cmd === 'stats') {
       await statsCmd(args.slice(1));
+      return;
+    }
+    if (cmd === 'files') {
+      await filesCmd(args.slice(1));
       return;
     }
     if (cmd === 'db') {

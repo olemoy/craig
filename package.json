@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Code Repository AI Graph - Semantic search for code repositories",
   "type": "module",
-  "main": "src/db/index.ts",
+  "main": "src/mcp/server.ts",
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
@@ -11,7 +11,9 @@
     "cli:ingest": "bun src/cli/index.ts ingest",
     "cli:list": "bun src/cli/index.ts list",
     "cli:query": "bun src/cli/index.ts query",
-    "cli:db": "bun src/cli/index.ts db"
+    "cli:db": "bun src/cli/index.ts db",
+    "mcp": "bun run src/mcp/server.ts",
+    "inspect": "bunx @modelcontextprotocol/inspector bun run src/mcp/server.ts"
   },
   "keywords": [
     "semantic-search",
@@ -23,7 +25,8 @@
   "license": "MIT",
   "dependencies": {
     "@electric-sql/pglite": "^0.2.0",
-    "@huggingface/transformers": "^3.8.1"
+    "@huggingface/transformers": "^3.8.1",
+    "@modelcontextprotocol/sdk": "^1.25.1"
   },
   "devDependencies": {
     "@types/bun": "latest",

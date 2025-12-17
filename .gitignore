@@ -6,6 +6,9 @@ bun.lockb
 dist/
 *.tsbuildinfo
 
+# Models
+models/
+
 # Database
 data/
 *.db
