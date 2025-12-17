@@ -163,7 +163,7 @@ export async function insertFiles(files: FileInsert[]): Promise<File[]> {
 
     // pglite/sqlite can hit limits for maximum SQL variables or statement size when
     // inserting very large batches. Split into smaller chunks to avoid those limits.
-    const MAX_BATCH_SIZE = 200; // safe conservative batch size (10 params per file -> 200*10=2000 params)
+    const MAX_BATCH_SIZE = 90; // safe conservative batch size (10 params per file -> 90*10=900 params)
     const results: any[] = [];
 
     for (let i = 0; i < files.length; i += MAX_BATCH_SIZE) {
