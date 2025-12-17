@@ -4,6 +4,9 @@ import { ingestRepo } from './commands/ingest.js';
 import { listRepos } from './commands/list.js';
 import { queryRepo } from './commands/query.js';
 import { dbCommand } from './commands/db.js';
+import { updateCmd } from './commands/update.js';
+import { removeCmd } from './commands/remove.js';
+import { statsCmd } from './commands/stats.js';
 
 function help() {
   console.log('craig <command> [options]\n');
@@ -32,6 +35,18 @@ async function main() {
     }
     if (cmd === 'query') {
       await queryRepo(args.slice(1));
+      return;
+    }
+    if (cmd === 'update') {
+      await updateCmd(args.slice(1));
+      return;
+    }
+    if (cmd === 'remove') {
+      await removeCmd(args.slice(1));
+      return;
+    }
+    if (cmd === 'stats') {
+      await statsCmd(args.slice(1));
       return;
     }
     if (cmd === 'db') {
