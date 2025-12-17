@@ -3,7 +3,7 @@ import { listRepositories } from '../../db/repositories.js';
 export async function listRepos(args: string[]) {
   const formatIndex = args.indexOf('--format');
   let format = 'table';
-  if (formatIndex !== -1 && args[formatIndex + 1]) format = args[formatIndex + 1];
+  if (formatIndex !== -1 && args[formatIndex + 1]) format = String(args[formatIndex + 1]);
   try {
     const repos = await listRepositories();
     if (format === 'json') {
