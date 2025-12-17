@@ -358,7 +358,7 @@ describe('Database Integration Tests', () => {
       expect(embeddings).toHaveLength(2);
     });
 
-    it.skip('should perform vector similarity search', async () => {
+    it('should perform vector similarity search', async () => {
       // Insert multiple embeddings with different vectors
       const repo = await insertRepository({
         ...mockRepository,
