@@ -27,7 +27,7 @@ Implement embedding generation using Transformers.js with all-MiniLM-L6-v2 model
 **Required packages:**
 ```json
 {
-  "@xenova/transformers": "^2.17.0"
+  "@huggingface/transformers": "^3.8.1"
 }
 ```
 
