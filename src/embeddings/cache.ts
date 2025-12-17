@@ -1,4 +1,4 @@
-import { modelConfig } from './config';
+import { getModelConfig } from './config';
 
 let pipelineInstance: any = null;
 let initializing: Promise<any> | null = null;
@@ -37,6 +37,7 @@ export async function getPipeline() {
 
     try {
       // Prefer local model under ./models/{modelId} if present
+      const modelConfig = getModelConfig();
       const localModelDir = `./models/${modelConfig.modelId.replace(/\//g, '_')}`;
       const fs = await import('fs');
       if (fs.existsSync(localModelDir)) {

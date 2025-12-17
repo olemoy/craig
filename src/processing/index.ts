@@ -14,6 +14,7 @@ import {embedTexts} from '../embeddings/pipeline.js';
 import {analyzeDelta, deleteFileAndChunks, updateFile} from './delta.js';
 import type {RepositoryId, FileId} from '../db/types.js';
 import type {ProgressReporter} from '../cli/progress.js';
+import {logProcessingError, formatFileSize, generateErrorSummary} from './error-logger.js';
 
 export async function processDirectory(
   root: string,
@@ -54,6 +55,15 @@ export async function processDirectory(
       console.log(msg2);
     }
     isDeltaIngestion = true;
+  }
+
+  // Display processing configuration early
+  const processingConfig = DEFAULT_CONFIG;
+  const maxSizeMsg = `File size limit: ${formatFileSize(processingConfig.maxFileSizeBytes)}`;
+  if (progress) {
+    progress.log(maxSizeMsg);
+  } else {
+    console.log(maxSizeMsg);
   }
 
   progress?.updatePhase('discovery', 'Discovering files...');
@@ -115,6 +125,7 @@ export async function processDirectory(
   }
 
   const files = filesToProcess;
+  let skippedFiles = 0;
 
   // Start progress tracking
   progress?.start(files.length);
@@ -124,6 +135,31 @@ export async function processDirectory(
       const start = new Date();
       const meta = await detectFileType(f);
       const stat = await fs.promises.stat(f);
+
+      // Check file size before processing
+      if (stat.size > DEFAULT_CONFIG.maxFileSizeBytes) {
+        const errorMsg = `File too large: ${formatFileSize(stat.size)} (max: ${formatFileSize(DEFAULT_CONFIG.maxFileSizeBytes)})`;
+        await logProcessingError({
+          timestamp: new Date(),
+          filePath: f,
+          errorType: 'file_too_large',
+          message: errorMsg,
+          details: {
+            fileSize: stat.size,
+            maxSize: DEFAULT_CONFIG.maxFileSizeBytes,
+          },
+        });
+
+        if (progress) {
+          progress.error(`Skipping ${f}: ${errorMsg}`);
+        } else {
+          console.error(`ERROR: Skipping ${f}: ${errorMsg}`);
+        }
+
+        skippedFiles++;
+        progress?.updateFile(f, 0);
+        continue; // Skip this file and continue with the next one
+      }
 
       if (meta.fileType === 'binary') {
         log(`[${fmtTime(start)}] Processing: ${f} (binary)`);
@@ -165,7 +201,6 @@ export async function processDirectory(
         }
 
         const end = new Date();
-        log(`[${fmtTime(end)}] Finished: ${f} (binary, ${Math.round(bin.size / 1024)}KB)`);
         progress?.updateFile(f, 0);
       } else {
         const txt = await readTextFile(f);
@@ -249,16 +284,35 @@ export async function processDirectory(
         }
 
         const end = new Date();
-        log(`[${fmtTime(end)}] Finished: ${f} - chunks:${chunks.length}`);
         progress?.updateFile(f, chunks.length);
       }
     } catch (e) {
       const errMsg = `Error processing ${f}: ${e}`;
+
+      // Log to error file
+      await logProcessingError({
+        timestamp: new Date(),
+        filePath: f,
+        errorType: 'processing_error',
+        message: String(e),
+        details: {
+          error: e instanceof Error ? {
+            name: e.name,
+            message: e.message,
+            stack: e.stack,
+          } : e,
+        },
+      });
+
       if (progress) {
         progress.error(errMsg);
       } else {
         console.error(errMsg);
       }
+
+      // Continue processing other files
+      skippedFiles++;
+      progress?.updateFile(f, 0);
     }
   }
 
@@ -281,6 +335,25 @@ export async function processDirectory(
     console.log(`  Total files in repository: ${discoveredFiles.length}`);
     if (isDeltaIngestion) {
       console.log(`  Files processed: ${filesToProcess.length}`);
+    }
+    if (skippedFiles > 0) {
+      console.log(`  Files skipped: ${skippedFiles}`);
+    }
+  } else if (skippedFiles > 0) {
+    // Show skipped files count in progress mode too
+    const skipMsg = `\n✓ Processing complete. Files skipped: ${skippedFiles}`;
+    progress.log(skipMsg);
+  }
+
+  // Show error summary if there were any processing errors
+  const errorSummary = await generateErrorSummary();
+  if (errorSummary && !errorSummary.includes('No processing errors') && !errorSummary.includes('No error log')) {
+    if (progress) {
+      progress.log('\n' + errorSummary);
+      progress.log('See processing-error.log for detailed error information.');
+    } else {
+      console.log(errorSummary);
+      console.log('See processing-error.log for detailed error information.');
     }
   }
 }

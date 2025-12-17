@@ -3,7 +3,9 @@
     "provider": "transformers",
     "transformers": {
       "model": "Xenova/all-MiniLM-L6-v2",
-      "dimensions": 384
+      "dimensions": 384,
+      "pooling": "mean",
+      "normalize": true
     },
     "ollama": {
       "baseUrl": "http://localhost:11434",
@@ -13,5 +15,11 @@
         "temperature": 0
       }
     }
+  },
+  "processing": {
+    "maxFileSizeBytes": 10485760,
+    "tokenTarget": 500,
+    "overlapTokens": 64,
+    "concurrency": 4
   }
 }

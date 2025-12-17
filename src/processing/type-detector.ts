@@ -10,7 +10,20 @@ const CODE_EXTENSIONS: Record<string, string> = {
 };
 
 const TEXT_EXTENSIONS = new Set(['.md', '.txt', '.json', '.yaml', '.yml']);
-const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.pdf', '.zip', '.exe']);
+const BINARY_EXTENSIONS = new Set([
+  // Images
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.webp', '.svg',
+  // Documents
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  // Archives
+  '.zip', '.tar', '.gz', '.rar', '.7z',
+  // Executables
+  '.exe', '.dll', '.so', '.dylib',
+  // Media
+  '.mp3', '.mp4', '.avi', '.mov', '.wav', '.flac',
+  // Fonts
+  '.ttf', '.otf', '.woff', '.woff2', '.eot',
+]);
 
 export async function detectFileType(filePath: string): Promise<{fileType: FileType; language?: string | null}> {
   const ext = path.extname(filePath).toLowerCase();

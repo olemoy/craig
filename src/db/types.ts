@@ -111,7 +111,7 @@ export interface Chunk {
 export interface Embedding {
   id: EmbeddingId;
   chunk_id: ChunkId;
-  embedding: number[]; // 384-dimensional vector (all-MiniLM-L6-v2)
+  embedding: number[]; // Vector dimensions determined by config.json
   created_at: Date;
 }
 
@@ -281,10 +281,10 @@ export function isTextOrCodeFile(file: File): boolean {
 
 /**
  * Validate vector dimensions
- * Embeddings MUST be exactly 384 dimensions (all-MiniLM-L6-v2)
+ * Dimensions are determined by the embedding provider in config.json
  */
-export function isValidVectorDimension(vector: number[]): boolean {
-  return vector.length === 384;
+export function isValidVectorDimension(vector: number[], expectedDimensions: number): boolean {
+  return vector.length === expectedDimensions;
 }
 
 /**

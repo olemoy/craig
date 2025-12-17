@@ -9,6 +9,8 @@ import path from 'path';
 export interface TransformersConfig {
   model: string;
   dimensions: number;
+  pooling?: 'mean' | 'cls';
+  normalize?: boolean;
 }
 
 export interface OllamaConfig {
@@ -27,8 +29,16 @@ export interface EmbeddingConfig {
   ollama: OllamaConfig;
 }
 
+export interface ProcessingConfig {
+  maxFileSizeBytes: number;
+  tokenTarget: number;
+  overlapTokens: number;
+  concurrency: number;
+}
+
 export interface Config {
   embedding: EmbeddingConfig;
+  processing?: ProcessingConfig;
 }
 
 let cachedConfig: Config | null = null;
@@ -104,5 +114,20 @@ export function getEmbeddingProvider(): {
     provider: 'transformers',
     config: embeddingConfig.transformers,
     dimensions: embeddingConfig.transformers.dimensions,
+  };
+}
+
+/**
+ * Get processing configuration with defaults
+ */
+export function getProcessingConfig(): ProcessingConfig {
+  const config = loadConfig();
+
+  // Provide defaults if not specified in config
+  return {
+    maxFileSizeBytes: config.processing?.maxFileSizeBytes ?? 10 * 1024 * 1024, // 10MB default
+    tokenTarget: config.processing?.tokenTarget ?? 500,
+    overlapTokens: config.processing?.overlapTokens ?? 64,
+    concurrency: config.processing?.concurrency ?? 4,
   };
 }

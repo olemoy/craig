@@ -2,9 +2,10 @@
  * Config command - display and validate configuration
  */
 
-import { getEmbeddingProvider, loadConfig } from '../../config/index.js';
+import { getEmbeddingProvider, loadConfig, getProcessingConfig } from '../../config/index.js';
 import { checkOllamaAvailability } from '../../embeddings/ollama.js';
 import type { OllamaConfig } from '../../config/index.js';
+import { formatFileSize } from '../../processing/error-logger.js';
 
 export async function configCmd(args: string[]) {
   const subcommand = args[0];
@@ -24,6 +25,7 @@ async function showConfig() {
   try {
     const config = loadConfig();
     const provider = getEmbeddingProvider();
+    const processing = getProcessingConfig();
 
     console.log('\n📋 Current Configuration\n');
     console.log('Embedding Provider:', provider.provider);
@@ -43,7 +45,13 @@ async function showConfig() {
       console.log('  Model:', config.embedding.transformers.model);
     }
 
-    console.log('\n💡 To change provider, edit config.json');
+    console.log('\nProcessing Settings:');
+    console.log('  Max File Size:', formatFileSize(processing.maxFileSizeBytes));
+    console.log('  Token Target:', processing.tokenTarget);
+    console.log('  Overlap Tokens:', processing.overlapTokens);
+    console.log('  Concurrency:', processing.concurrency);
+
+    console.log('\n💡 To change settings, edit config.json');
     console.log('   Example config: config.example.json\n');
   } catch (error) {
     console.error('Error reading config:', error instanceof Error ? error.message : String(error));

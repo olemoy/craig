@@ -109,7 +109,7 @@ function createBarReporter(): ProgressReporter {
 
     log(message: string) {
       // In progress mode, only show important messages
-      if (message.includes('✓') || message.includes('repository') || message.includes('Delta')) {
+      if (message.includes('✓') || message.includes('repository') || message.includes('Delta') || message.includes('File size')) {
         multibar.log(message + '\n');
       }
     },

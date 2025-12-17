@@ -50,7 +50,11 @@ export async function analyzeDelta(
       const stat = await fs.promises.stat(filePath);
       const lastModified = dbFile.last_modified;
 
-      if (!lastModified || stat.mtime > lastModified) {
+      // Compare timestamps at second precision (to avoid filesystem/db precision differences)
+      const fileModTime = Math.floor(stat.mtime.getTime() / 1000);
+      const dbModTime = lastModified ? Math.floor(new Date(lastModified).getTime() / 1000) : 0;
+
+      if (!lastModified || fileModTime > dbModTime) {
         // File modified since last ingestion
         toUpdate.push(filePath);
       } else if (stat.size !== dbFile.size_bytes) {

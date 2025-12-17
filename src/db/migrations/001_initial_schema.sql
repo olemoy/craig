@@ -68,13 +68,13 @@ CREATE TABLE chunks (
 -- Stores vector embeddings for chunks
 --
 -- NOTE: Only chunks (from text/code files) have embeddings.
--- Vector dimension: 384 (Xenova/all-MiniLM-L6-v2 model)
+-- Vector dimension: 768 (configured in config.json)
 -- Unique constraint ensures one embedding per chunk
 
 CREATE TABLE embeddings (
   id SERIAL PRIMARY KEY,
   chunk_id INTEGER NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
-  embedding vector(384),      -- 384-dimensional vector
+  embedding vector(768),      -- 768-dimensional vector
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(chunk_id)
 );

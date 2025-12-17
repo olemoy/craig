@@ -2,9 +2,9 @@
  * Embeddings table CRUD operations
  *
  * Provides functions for managing embedding records and vector similarity search.
- * Embeddings are 384-dimensional vectors generated from text/code chunks.
+ * Vector dimensions are determined by the embedding provider in config.json.
  *
- * CRITICAL: Vector dimension MUST be exactly 384 (Xenova/all-MiniLM-L6-v2)
+ * CRITICAL: Vector dimensions must match the database schema (see migrations)
  */
 
 import { getClient } from './client.js';
@@ -20,6 +20,7 @@ import {
   DatabaseErrorCode,
   isValidVectorDimension,
 } from './types.js';
+import { getEmbeddingProvider } from '../config/index.js';
 
 /**
  * Map database row to Embedding type
@@ -49,13 +50,13 @@ function mapToSimilarityResult(row: any): SimilarityResult {
 
 /**
  * Validate embedding vector dimensions
- * @throws DatabaseError if vector is not 384 dimensions
+ * @throws DatabaseError if vector dimensions don't match expected dimensions
  */
-function validateVector(vector: number[]): void {
-  if (!isValidVectorDimension(vector)) {
+function validateVector(vector: number[], expectedDimensions: number): void {
+  if (!isValidVectorDimension(vector, expectedDimensions)) {
     throw new DatabaseError(
       DatabaseErrorCode.INVALID_INPUT,
-      `Vector must be exactly 384 dimensions, got ${vector.length}`
+      `Vector must be exactly ${expectedDimensions} dimensions, got ${vector.length}`
     );
   }
 }
@@ -71,7 +72,8 @@ export async function insertEmbedding(
   data: EmbeddingInsert
 ): Promise<Embedding> {
   // Validate vector dimensions
-  validateVector(data.embedding);
+  const provider = getEmbeddingProvider();
+  validateVector(data.embedding, provider.dimensions);
 
   try {
     const client = await getClient();
@@ -132,8 +134,9 @@ export async function insertEmbeddings(
   }
 
   // Validate all vectors first
+  const provider = getEmbeddingProvider();
   for (const embedding of embeddings) {
-    validateVector(embedding.embedding);
+    validateVector(embedding.embedding, provider.dimensions);
   }
 
   try {
@@ -244,7 +247,7 @@ export async function getEmbeddingByChunk(
  * Uses cosine distance (<=> operator) for semantic similarity search.
  * Returns chunks with their similarity scores, ordered by most similar first.
  *
- * @param queryVector - Query vector (must be 384 dimensions)
+ * @param queryVector - Query vector (dimensions must match config)
  * @param limit - Maximum number of results to return (default: 10)
  * @param threshold - Minimum similarity score (0-1, default: 0, returns all)
  * @returns Array of similar chunks with similarity scores
@@ -256,7 +259,8 @@ export async function searchSimilarEmbeddings(
   _threshold: number = 0
 ): Promise<SimilarityResult[]> {
   // Validate query vector dimensions
-  validateVector(queryVector);
+  const provider = getEmbeddingProvider();
+  validateVector(queryVector, provider.dimensions);
 
   try {
     const client = await getClient();
@@ -308,7 +312,7 @@ export async function searchSimilarEmbeddings(
 /**
  * Search for similar embeddings within a specific repository
  *
- * @param queryVector - Query vector (must be 384 dimensions)
+ * @param queryVector - Query vector (dimensions must match config)
  * @param repositoryId - Repository ID to search within
  * @param limit - Maximum number of results to return (default: 10)
  * @param threshold - Minimum similarity score (0-1, default: 0)
@@ -322,7 +326,8 @@ export async function searchSimilarEmbeddingsInRepository(
   _threshold: number = 0
 ): Promise<SimilarityResult[]> {
   // Validate query vector dimensions
-  validateVector(queryVector);
+  const provider = getEmbeddingProvider();
+  validateVector(queryVector, provider.dimensions);
 
   try {
     const client = await getClient();
