@@ -161,45 +161,54 @@ export async function insertFiles(files: FileInsert[]): Promise<File[]> {
   try {
     const client = await getClient();
 
-    // Build parameterized query for batch insert
-    const placeholders: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
+    // pglite/sqlite can hit limits for maximum SQL variables or statement size when
+    // inserting very large batches. Split into smaller chunks to avoid those limits.
+    const MAX_BATCH_SIZE = 200; // safe conservative batch size (10 params per file -> 200*10=2000 params)
+    const results: any[] = [];
 
-    for (const file of files) {
-      placeholders.push(
-        `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, ` +
-        `$${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, ` +
-        `$${paramIndex + 8}, $${paramIndex + 9})`
+    for (let i = 0; i < files.length; i += MAX_BATCH_SIZE) {
+      const batch = files.slice(i, i + MAX_BATCH_SIZE);
+      const placeholders: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      for (const file of batch) {
+        placeholders.push(
+          `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, ` +
+          `$${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, ` +
+          `$${paramIndex + 8}, $${paramIndex + 9})`
+        );
+
+        values.push(
+          file.repository_id,
+          file.file_path,
+          file.file_type,
+          file.content,
+          file.binary_metadata ? JSON.stringify(file.binary_metadata) : null,
+          file.content_hash,
+          file.size_bytes ?? null,
+          file.last_modified ?? null,
+          file.language ?? null,
+          file.metadata ? JSON.stringify(file.metadata) : null
+        );
+
+        paramIndex += 10;
+      }
+
+      const result = await client.query(
+        `INSERT INTO files (
+          repository_id, file_path, file_type, content, binary_metadata,
+          content_hash, size_bytes, last_modified, language, metadata
+        )
+         VALUES ${placeholders.join(', ')}
+         RETURNING *`,
+        values
       );
 
-      values.push(
-        file.repository_id,
-        file.file_path,
-        file.file_type,
-        file.content,
-        file.binary_metadata ? JSON.stringify(file.binary_metadata) : null,
-        file.content_hash,
-        file.size_bytes ?? null,
-        file.last_modified ?? null,
-        file.language ?? null,
-        file.metadata ? JSON.stringify(file.metadata) : null
-      );
-
-      paramIndex += 10;
+      results.push(...result.rows);
     }
 
-    const result = await client.query(
-      `INSERT INTO files (
-        repository_id, file_path, file_type, content, binary_metadata,
-        content_hash, size_bytes, last_modified, language, metadata
-      )
-       VALUES ${placeholders.join(', ')}
-       RETURNING *`,
-      values
-    );
-
-    return result.rows.map(mapToFile);
+    return results.map(mapToFile);
   } catch (error) {
     if (error instanceof DatabaseError) {
       throw error;
