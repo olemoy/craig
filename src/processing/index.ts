@@ -13,10 +13,16 @@ import {insertEmbeddings} from '../db/embeddings.js';
 import {embedTexts} from '../embeddings/pipeline.js';
 import {analyzeDelta, deleteFileAndChunks, updateFile} from './delta.js';
 import type {RepositoryId, FileId} from '../db/types.js';
+import type {ProgressReporter} from '../cli/progress.js';
 
-export async function processDirectory(root: string, repoName?: string, opts?: { verbose?: boolean }) {
+export async function processDirectory(
+  root: string,
+  repoName?: string,
+  opts?: { verbose?: boolean; progress?: ProgressReporter }
+) {
   const fmtTime = (d: Date) => d.toTimeString().split(' ')[0];
   const verbose = opts?.verbose ?? false;
+  const progress = opts?.progress;
   const log = verbose ? console.log : () => {};
 
   // Get or create repository record
@@ -31,13 +37,17 @@ export async function processDirectory(root: string, repoName?: string, opts?: {
       commit_sha: null,
       metadata: null,
     });
-    console.log(`Created repository: ${repo.name} (id: ${repo.id})`);
+    const msg = `Created repository: ${repo.name} (id: ${repo.id})`;
+    progress?.log(msg) ?? console.log(msg);
   } else {
-    console.log(`Existing repository found: ${repo.name} (id: ${repo.id})`);
-    console.log(`Performing delta ingestion (only processing changes)...\n`);
+    const msg1 = `Existing repository found: ${repo.name} (id: ${repo.id})`;
+    const msg2 = `Performing delta ingestion (only processing changes)...`;
+    progress?.log(msg1) ?? console.log(msg1);
+    progress?.log(msg2) ?? console.log(msg2);
     isDeltaIngestion = true;
   }
 
+  progress?.updatePhase('discovery', 'Discovering files...');
   const discoveredFiles = await discoverFiles(root);
 
   // Analyze what changed
@@ -46,15 +56,15 @@ export async function processDirectory(root: string, repoName?: string, opts?: {
   if (isDeltaIngestion) {
     const delta = await analyzeDelta(repo, discoveredFiles);
 
-    console.log(`Delta Analysis:`);
-    console.log(`  📄 Unchanged: ${delta.unchanged.length}`);
-    console.log(`  ✏️  Modified:  ${delta.toUpdate.length}`);
-    console.log(`  ➕ New:       ${delta.toAdd.length}`);
-    console.log(`  ➖ Deleted:   ${delta.toDelete.length}\n`);
+    const deltaMsg = `Delta Analysis:\n  📄 Unchanged: ${delta.unchanged.length}\n  ✏️  Modified:  ${delta.toUpdate.length}\n  ➕ New:       ${delta.toAdd.length}\n  ➖ Deleted:   ${delta.toDelete.length}`;
+    progress?.log(deltaMsg) ?? console.log(deltaMsg);
 
     // Delete removed files
+    if (delta.toDelete.length > 0) {
+      progress?.updatePhase('cleanup', 'Deleting removed files...');
+    }
     for (const file of delta.toDelete) {
-      console.log(`[${fmtTime(new Date())}] Deleting: ${file.file_path}`);
+      log(`[${fmtTime(new Date())}] Deleting: ${file.file_path}`);
       await deleteFileAndChunks(file.id);
     }
 
@@ -70,7 +80,8 @@ export async function processDirectory(root: string, repoName?: string, opts?: {
     filesToProcess = [...delta.toAdd, ...delta.toUpdate];
 
     if (filesToProcess.length === 0) {
-      console.log('✓ Repository is up to date, no changes detected.');
+      const msg = '✓ Repository is up to date, no changes detected.';
+      progress?.log(msg) ?? console.log(msg);
       await updateRepository({
         id: repo.id,
         metadata: { last_checked: new Date().toISOString() },
@@ -78,10 +89,14 @@ export async function processDirectory(root: string, repoName?: string, opts?: {
       return;
     }
 
-    console.log(`Processing ${filesToProcess.length} changed files...\n`);
+    const procMsg = `Processing ${filesToProcess.length} changed files...`;
+    progress?.log(procMsg) ?? console.log(procMsg);
   }
 
   const files = filesToProcess;
+
+  // Start progress tracking
+  progress?.start(files.length);
 
   for (const f of files) {
     try {
@@ -90,7 +105,7 @@ export async function processDirectory(root: string, repoName?: string, opts?: {
       const stat = await fs.promises.stat(f);
 
       if (meta.fileType === 'binary') {
-        console.log(`[${fmtTime(start)}] Processing: ${f} (binary)`);
+        log(`[${fmtTime(start)}] Processing: ${f} (binary)`);
         const bin = await processBinary(f);
 
         // Check if file exists for update
@@ -129,10 +144,11 @@ export async function processDirectory(root: string, repoName?: string, opts?: {
         }
 
         const end = new Date();
-        console.log(`[${fmtTime(end)}] Finished: ${f} (binary, ${Math.round(bin.size / 1024)}KB)`);
+        log(`[${fmtTime(end)}] Finished: ${f} (binary, ${Math.round(bin.size / 1024)}KB)`);
+        progress?.updateFile(f, 0);
       } else {
         const txt = await readTextFile(f);
-        console.log(`[${fmtTime(start)}] Processing: ${f}`);
+        log(`[${fmtTime(start)}] Processing: ${f}`);
 
         log(`  → Chunking text...`);
         const chunks = chunkText(f, txt, {
@@ -212,12 +228,17 @@ export async function processDirectory(root: string, repoName?: string, opts?: {
         }
 
         const end = new Date();
-        console.log(`[${fmtTime(end)}] Finished: ${f} - chunks:${chunks.length}`);
+        log(`[${fmtTime(end)}] Finished: ${f} - chunks:${chunks.length}`);
+        progress?.updateFile(f, chunks.length);
       }
     } catch (e) {
-      console.error('error processing', f, e);
+      const errMsg = `Error processing ${f}: ${e}`;
+      progress?.error(errMsg) ?? console.error(errMsg);
     }
   }
+
+  // Finish progress tracking
+  progress?.updatePhase('complete', 'Finalizing...');
 
   // Update repository metadata
   await updateRepository({
@@ -228,10 +249,14 @@ export async function processDirectory(root: string, repoName?: string, opts?: {
     },
   });
 
-  console.log(`\n✓ Ingestion complete for repository: ${repo.name}`);
-  console.log(`  Total files in repository: ${discoveredFiles.length}`);
-  if (isDeltaIngestion) {
-    console.log(`  Files processed: ${filesToProcess.length}`);
+  progress?.finish();
+
+  if (!progress) {
+    console.log(`\n✓ Ingestion complete for repository: ${repo.name}`);
+    console.log(`  Total files in repository: ${discoveredFiles.length}`);
+    if (isDeltaIngestion) {
+      console.log(`  Files processed: ${filesToProcess.length}`);
+    }
   }
 }
 
