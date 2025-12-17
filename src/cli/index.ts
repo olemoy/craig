@@ -15,16 +15,22 @@ function help() {
   console.log('craig <command> [options]\n');
   console.log('Commands:');
   console.log('  ingest <path> --name <name>           Ingest a repository');
+  console.log('         [--verbose|-v] [--quiet|-q]      Progress display options');
   console.log('  analyze <name|id>                     Analyze a repository and store results');
   console.log('  list [--format json|table]            List known repositories');
   console.log('  query <question> --repo <name|id>     Semantic search in repository');
   console.log('        [--limit <n>]                     (default limit: 5)');
   console.log('  files <name|id> [--tree]              List files in repository');
   console.log('  stats <name|id>                       Repository statistics');
-  console.log('  update <name|id>                      Re-ingest repository');
+  console.log('  update <name|id|path>                 Re-ingest repository (delta update)');
+  console.log('         [--verbose|-v] [--quiet|-q]      Progress display options');
   console.log('  remove <name|id>                      Remove repository');
   console.log('  model <action>                        Model management (fetch)');
   console.log('  db <action>                           Database management (status|vacuum|export|import)');
+  console.log('\nProgress Options:');
+  console.log('  (default)  Fixed progress bar with real-time stats');
+  console.log('  --verbose  Detailed logs for each file');
+  console.log('  --quiet    Minimal output, summary only');
   console.log('\nNote: Most commands accept repository name, full path, or numeric ID');
 }
 
