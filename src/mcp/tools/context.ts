@@ -79,7 +79,7 @@ export async function getFileContext(args: GetFileContextArgs): Promise<FileCont
 
 export const getFileContextTool = {
   name: 'read_file',
-  description: 'Read complete file content from repository',
+  description: 'Read complete file content from repository. Parameters: filePath (required, string - relative path within repo), repository (required, string - name/path/ID). Returns full file content with metadata (type, language, size). Use after identifying files via query or files tool.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -115,7 +115,7 @@ export async function analyzeCodebase(args: AnalyzeCodebaseArgs): Promise<Reposi
 
 export const analyzeCodebaseTool = {
   name: 'analyze',
-  description: 'Analyze repository metrics and language distribution',
+  description: 'Analyze repository metrics and language distribution. Parameters: repository (required, string - name/path/ID). Returns detailed stats including file counts by type (code/text/binary), language distribution, chunk counts, and embeddings. Use for comprehensive repository overview.',
   inputSchema: {
     type: 'object',
     properties: {

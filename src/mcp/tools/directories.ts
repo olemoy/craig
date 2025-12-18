@@ -27,7 +27,7 @@ export interface GetDirectoriesResult {
 }
 
 export async function getDirectories(args: GetDirectoriesArgs): Promise<GetDirectoriesResult> {
-  const { repository, path, depth, limit, offset = 0 } = args;
+  const { repository, path, depth = 0, limit = 100, offset = 0 } = args;
 
   if (!repository || repository.trim().length === 0) {
     throw createInvalidParamsError('repository parameter is required');
@@ -126,7 +126,7 @@ export async function getDirectories(args: GetDirectoriesArgs): Promise<GetDirec
 
 export const getDirectoriesTool = {
   name: 'directories',
-  description: 'Get directory structure (no files). Supports pagination for large result sets.',
+  description: 'Get directory structure (no files). Parameters: repository (required, string - name/path/ID), path (optional, string - filter to subdirectory), depth (optional, number, default: 0 - where 0=root only, 1=one level down, etc.), limit (optional, number, default: 100 - keep low to avoid context bloat), offset (optional, number, default: 0 - for pagination). Returns paginated results. Start with root-level exploration (depth=0), then drill down incrementally.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -140,15 +140,18 @@ export const getDirectoriesTool = {
       },
       depth: {
         type: 'number',
-        description: 'Optional: depth from root (0=root only, 1=one level down)',
+        description: 'Optional: depth from root (0=root only, 1=one level down, default: 0)',
+        default: 0,
       },
       limit: {
         type: 'number',
-        description: 'Optional: maximum number of directories to return (for pagination)',
+        description: 'Optional: maximum number of directories to return (default: 100)',
+        default: 100,
       },
       offset: {
         type: 'number',
         description: 'Optional: number of directories to skip (for pagination, default: 0)',
+        default: 0,
       },
     },
     required: ['repository'],

@@ -4,7 +4,7 @@
  * Tests each tool individually without the full MCP protocol
  */
 
-import { query } from './tools/search.js';
+import { query } from './tools/query.js';
 import { getFileContext } from './tools/context.js';
 import { analyzeCodebase } from './tools/analyze.js';
 import { findSimilar } from './tools/similar.js';

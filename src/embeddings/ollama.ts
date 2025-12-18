@@ -46,13 +46,45 @@ export async function embedTextOllama(
 }
 
 /**
- * Generate embeddings for multiple texts using Ollama with proper concurrency limiting
+ * Generate embeddings for multiple texts in a single batch request
+ * Uses Ollama's batch embedding API for efficiency
+ */
+async function embedBatchOllama(
+  texts: string[],
+  config: OllamaConfig
+): Promise<number[][]> {
+  const client = getOllamaClient(config);
+
+  try {
+    // Use 'input' parameter for batch processing (not 'prompt')
+    const response = await client.embed({
+      model: config.model,
+      input: texts,
+      // @ts-ignore - options may not be in type definitions yet
+      options: config.options,
+    });
+
+    return response.embeddings;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Ollama batch embedding failed: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Generate embeddings for multiple texts using Ollama with batching and concurrency
  *
- * Maintains exactly maxConcurrent requests in-flight at any time for optimal throughput
- * without overwhelming the Ollama server.
+ * Uses Ollama's batch API to reduce HTTP overhead by embedding multiple texts per request.
+ * Processes batches in parallel for optimal throughput without overwhelming the server.
  *
- * Uses a worker pool approach: maintains a pool of workers that process texts from a queue,
- * ensuring consistent parallelism throughout the operation.
+ * Features:
+ * - Batches texts into groups (default 20 per batch) to reduce API calls
+ * - Processes multiple batches concurrently (respects maxConcurrent)
+ * - Automatic retry logic for failed batches
+ * - Request timeouts to prevent hanging
+ * - Frequent progress updates
  *
  * @param texts - Array of texts to embed
  * @param config - Ollama configuration
@@ -66,32 +98,63 @@ export async function embedTextsOllama(
   if (texts.length === 0) return [];
 
   const maxConcurrent = config.maxConcurrent ?? 50;
-  const results: (number[] | null)[] = new Array(texts.length).fill(null);
+  const batchSize = 20; // Embed 20 texts per API call
+  const maxRetries = 3;
+  const timeoutMs = 30000; // 30 second timeout per batch
+
+  // Split texts into batches
+  const batches: string[][] = [];
+  for (let i = 0; i < texts.length; i += batchSize) {
+    batches.push(texts.slice(i, i + batchSize));
+  }
+
+  const results: number[][] = [];
   let completed = 0;
-  let nextIndex = 0;
+  let nextBatchIndex = 0;
 
-  // Worker function that processes texts from the queue
+  // Process a single batch with retry logic
+  const processBatch = async (batch: string[], retries = maxRetries): Promise<number[][]> => {
+    try {
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Batch embedding timeout')), timeoutMs)
+      );
+
+      const embedPromise = embedBatchOllama(batch, config);
+      const embeddings = await Promise.race([embedPromise, timeoutPromise]);
+
+      completed += batch.length;
+      if (onProgress) {
+        onProgress(completed, texts.length);
+      }
+
+      return embeddings;
+    } catch (error) {
+      if (retries > 0) {
+        // Retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, (maxRetries - retries + 1) * 1000));
+        return processBatch(batch, retries - 1);
+      }
+      throw error;
+    }
+  };
+
+  // Worker function that processes batches from the queue
   const worker = async (): Promise<void> => {
-    while (nextIndex < texts.length) {
-      const index = nextIndex++;
-      const text = texts[index];
+    while (nextBatchIndex < batches.length) {
+      const batchIndex = nextBatchIndex++;
+      const batch = batches[batchIndex];
 
-      if (text !== undefined) {
-        const embedding = await embedTextOllama(text, config);
-        results[index] = embedding;
-        completed++;
-
-        // Report progress periodically
-        if (onProgress && (completed % 50 === 0 || completed === texts.length)) {
-          onProgress(completed, texts.length);
-        }
+      if (batch) {
+        const embeddings = await processBatch(batch);
+        results.push(...embeddings);
       }
     }
   };
 
   // Start worker pool
   const workers: Promise<void>[] = [];
-  const workerCount = Math.min(maxConcurrent, texts.length);
+  const workerCount = Math.min(maxConcurrent, batches.length);
 
   for (let i = 0; i < workerCount; i++) {
     workers.push(worker());
@@ -100,8 +163,7 @@ export async function embedTextsOllama(
   // Wait for all workers to complete
   await Promise.all(workers);
 
-  // Filter out any null values (shouldn't happen, but TypeScript safety)
-  return results.filter((r): r is number[] => r !== null);
+  return results;
 }
 
 /**

@@ -91,7 +91,7 @@ export async function findSimilar(args: FindSimilarArgs): Promise<SimilarCodeRes
 
 export const findSimilarTool = {
   name: 'similar',
-  description: 'Find code similar to given snippet',
+  description: 'Find code similar to given snippet using semantic similarity. Parameters: code (required, string - code snippet to match), repository (optional, string - name/path/ID filter), limit (optional, number, default: 10). Returns semantically similar code chunks. Use to find patterns, duplicates, or similar implementations.',
   inputSchema: {
     type: 'object',
     properties: {

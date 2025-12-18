@@ -11,7 +11,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { query, queryTool } from './tools/search.js';
+import { query, queryTool } from './tools/query.js';
 import { getFileContext, getFileContextTool } from './tools/context.js';
 import { analyzeCodebase, analyzeCodebaseTool } from './tools/analyze.js';
 import { findSimilar, findSimilarTool } from './tools/similar.js';
@@ -56,7 +56,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
     switch (name) {
-      case 'search': {
+      case 'query': {
         const results = await query(args as any);
         return {
           content: [

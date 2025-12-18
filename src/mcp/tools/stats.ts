@@ -57,7 +57,7 @@ export async function getStats(args: GetStatsArgs): Promise<StatsResult> {
 
 export const getStatsTool = {
   name: 'stats',
-  description: 'Get repository statistics (files, chunks, embeddings)',
+  description: 'Get repository statistics (files, chunks, embeddings). Parameters: repository (required, string - name/path/ID). Returns counts for files, chunks, and embeddings. Useful for understanding repository ingestion status.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -101,8 +101,8 @@ export async function query(args: QueryArgs): Promise<SearchResult[]> {
 }
 
 export const queryTool = {
-  name: 'search',
-  description: 'Semantic code search using natural language queries',
+  name: 'query',
+  description: 'Semantic code search using natural language queries. Parameters: query (required, string), repository (optional, string - name/path/ID), limit (optional, number, default: 10), fileType (optional, enum: code|text|binary). Use to find relevant code by describing what you\'re looking for.',
   inputSchema: {
     type: 'object',
     properties: {

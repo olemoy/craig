@@ -26,7 +26,7 @@ export interface ListFilesResult {
 }
 
 export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
-  const { repository, path, limit, offset = 0 } = args;
+  const { repository, path, limit = 100, offset = 0 } = args;
 
   if (!repository || repository.trim().length === 0) {
     throw createInvalidParamsError('repository parameter is required');
@@ -106,7 +106,7 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
 
 export const listFilesTool = {
   name: 'files',
-  description: 'List files in repository as relative paths. Supports pagination for large result sets.',
+  description: 'List files in repository as relative paths. Parameters: repository (required, string - name/path/ID), path (optional, string - filter to subdirectory), limit (optional, number, default: 100 - keep low to avoid context bloat), offset (optional, number, default: 0 - for pagination). Returns paginated results with total count and "more" flag. Start with root exploration, then drill down into specific paths.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -120,11 +120,13 @@ export const listFilesTool = {
       },
       limit: {
         type: 'number',
-        description: 'Optional: maximum number of files to return (for pagination)',
+        description: 'Optional: maximum number of files to return (default: 100)',
+        default: 100,
       },
       offset: {
         type: 'number',
         description: 'Optional: number of files to skip (for pagination, default: 0)',
+        default: 0,
       },
     },
     required: ['repository'],
