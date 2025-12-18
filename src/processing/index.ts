@@ -11,7 +11,7 @@ import {insertFile, updateFile as updateFileRecord, getFileByPath} from '../db/f
 import {insertChunks} from '../db/chunks.js';
 import {insertEmbeddings} from '../db/embeddings.js';
 import {embedTexts} from '../embeddings/pipeline.js';
-import {analyzeDelta, deleteFileAndChunks, updateFile} from './delta.js';
+import {analyzeDelta, analyzeResume, deleteFileAndChunks, updateFile} from './delta.js';
 import type {RepositoryId, FileId} from '../db/types.js';
 import type {ProgressReporter} from '../cli/progress.js';
 import {logProcessingError, formatFileSize, generateErrorSummary} from './error-logger.js';
@@ -19,11 +19,12 @@ import {logProcessingError, formatFileSize, generateErrorSummary} from './error-
 export async function processDirectory(
   root: string,
   repoName?: string,
-  opts?: { verbose?: boolean; progress?: ProgressReporter }
+  opts?: { verbose?: boolean; progress?: ProgressReporter; resume?: boolean }
 ) {
   const fmtTime = (d: Date) => d.toTimeString().split(' ')[0];
   const verbose = opts?.verbose ?? false;
   const progress = opts?.progress;
+  const resume = opts?.resume ?? false;
   const log = verbose ? console.log : () => {};
 
   // Get or create repository record
@@ -72,7 +73,40 @@ export async function processDirectory(
   // Analyze what changed
   let filesToProcess: string[] = discoveredFiles;
 
-  if (isDeltaIngestion) {
+  if (isDeltaIngestion && resume) {
+    // Resume mode: skip files that already have embeddings
+    const resumeAnalysis = await analyzeResume(repo, discoveredFiles);
+
+    const resumeMsg = `Resume Analysis:\n  ✓ Already processed: ${resumeAnalysis.alreadyProcessed.length}\n  ⏭️  To process: ${resumeAnalysis.toProcess.length}`;
+    if (progress) {
+      progress.log(resumeMsg);
+    } else {
+      console.log(resumeMsg);
+    }
+
+    filesToProcess = resumeAnalysis.toProcess;
+
+    if (filesToProcess.length === 0) {
+      const msg = '✓ All files already processed, nothing to resume.';
+      if (progress) {
+        progress.log(msg);
+      } else {
+        console.log(msg);
+      }
+      await updateRepository({
+        id: repo.id,
+        metadata: { last_checked: new Date().toISOString() },
+      });
+      return;
+    }
+
+    const procMsg = `Resuming processing for ${filesToProcess.length} files...`;
+    if (progress) {
+      progress.log(procMsg);
+    } else {
+      console.log(procMsg);
+    }
+  } else if (isDeltaIngestion) {
     const delta = await analyzeDelta(repo, discoveredFiles);
 
     const deltaMsg = `Delta Analysis:\n  📄 Unchanged: ${delta.unchanged.length}\n  ✏️  Modified:  ${delta.toUpdate.length}\n  ➕ New:       ${delta.toAdd.length}\n  ➖ Deleted:   ${delta.toDelete.length}`;

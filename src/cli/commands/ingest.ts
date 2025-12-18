@@ -9,7 +9,7 @@ import type { OllamaConfig } from '../../config/index.js';
 export async function ingestRepo(args: string[]) {
   const pathArg = args.find((a) => !a.startsWith('-'));
   if (!pathArg) {
-    console.error('Usage: craig ingest <path> [--name <name>] [--verbose|--quiet]');
+    console.error('Usage: craig ingest <path> [--name <name>] [--resume] [--verbose|--quiet]');
     return;
   }
   const fullPath = resolve(process.cwd(), pathArg);
@@ -23,6 +23,7 @@ export async function ingestRepo(args: string[]) {
   const repoName = nameIndex !== -1 && args[nameIndex + 1] ? args[nameIndex + 1] : undefined;
   const verbose = args.includes('--verbose') || args.includes('-v');
   const quiet = args.includes('--quiet') || args.includes('-q');
+  const resume = args.includes('--resume');
 
   // Determine progress mode
   const progressMode = verbose ? 'verbose' : quiet ? 'quiet' : 'progress';
@@ -57,9 +58,15 @@ export async function ingestRepo(args: string[]) {
     return;
   }
 
-  if (!quiet) console.log('Starting ingest for', fullPath);
+  if (!quiet) {
+    if (resume) {
+      console.log('Resuming ingest for', fullPath);
+    } else {
+      console.log('Starting ingest for', fullPath);
+    }
+  }
   try {
-    await processDirectory(fullPath, repoName, { verbose, progress });
+    await processDirectory(fullPath, repoName, { verbose, progress, resume });
     if (quiet) console.log('✓ Ingest completed successfully!');
   } catch (err) {
     console.error('Ingest failed:', err instanceof Error ? err.message : String(err));

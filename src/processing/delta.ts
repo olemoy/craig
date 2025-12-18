@@ -18,6 +18,45 @@ export interface DeltaStats {
 }
 
 /**
+ * Analyze which files need processing for resume mode
+ * In resume mode, skip files that already have embeddings (fully processed)
+ */
+export async function analyzeResume(
+  repo: Repository,
+  discoveredFiles: string[]
+): Promise<{
+  toProcess: string[];
+  alreadyProcessed: string[];
+}> {
+  const client = await getClient();
+
+  // Get all files that have embeddings (fully processed)
+  // A file is considered processed if it has at least one chunk with an embedding
+  const result = await client.query(
+    `SELECT DISTINCT f.file_path
+     FROM files f
+     INNER JOIN chunks c ON c.file_id = f.id
+     INNER JOIN embeddings e ON e.chunk_id = c.id
+     WHERE f.repository_id = $1`,
+    [repo.id]
+  );
+
+  const processedFiles = new Set(result.rows.map((row: any) => row.file_path));
+  const toProcess: string[] = [];
+  const alreadyProcessed: string[] = [];
+
+  for (const filePath of discoveredFiles) {
+    if (processedFiles.has(filePath)) {
+      alreadyProcessed.push(filePath);
+    } else {
+      toProcess.push(filePath);
+    }
+  }
+
+  return { toProcess, alreadyProcessed };
+}
+
+/**
  * Compare discovered files with database and determine what needs processing
  */
 export async function analyzeDelta(
