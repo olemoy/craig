@@ -15,6 +15,7 @@ import {analyzeDelta, analyzeResume, deleteFileAndChunks, updateFile} from './de
 import type {RepositoryId, FileId} from '../db/types.js';
 import type {ProgressReporter} from '../cli/progress.js';
 import {logProcessingError, formatFileSize, generateErrorSummary} from './error-logger.js';
+import {createIngestionLogger} from '../utils/ingestion-logger.js';
 
 export async function processDirectory(
   root: string,
@@ -164,12 +165,21 @@ export async function processDirectory(
   let skippedDueToError = 0;
   let filesIngested = 0; // New files added to DB
   let totalErrors = 0; // Total errors encountered
+  let totalChunksProcessed = 0; // Track total chunks
+
+  // Create ingestion logger
+  const logger = createIngestionLogger(repo.name);
+  const sessionStartTime = Date.now();
+  const mode = resume ? 'resume' : (isDeltaIngestion ? 'update' : 'ingest');
+  logger.sessionStart(mode, files.length);
 
   // Start progress tracking
   progress?.start(files.length);
 
   for (const f of files) {
+    const fileStartTime = Date.now();
     try {
+      logger.start(f);
       const start = new Date();
       const meta = await detectFileType(f);
       const stat = await fs.promises.stat(f);
@@ -236,6 +246,7 @@ export async function processDirectory(
 
         skippedFiles++;
         skippedDueToSize++;
+        logger.skip(f, `File too large: ${formatFileSize(stat.size)}`);
         progress?.updateFile(f, 0);
         continue; // Skip this file and continue with the next one
       }
@@ -278,6 +289,8 @@ export async function processDirectory(
         }
 
         const end = new Date();
+        const duration = Date.now() - fileStartTime;
+        logger.done(f, 0, duration);
         progress?.updateFile(f, 0);
       } else {
         const txt = await readTextFile(f);
@@ -374,6 +387,9 @@ export async function processDirectory(
         }
 
         const end = new Date();
+        const duration = Date.now() - fileStartTime;
+        totalChunksProcessed += chunks.length;
+        logger.done(f, chunks.length, duration);
         progress?.updateFile(f, chunks.length);
       }
     } catch (e) {
@@ -417,6 +433,7 @@ export async function processDirectory(
       skippedFiles++;
       skippedDueToError++;
       totalErrors++;
+      logger.error(f, e instanceof Error ? e.message : String(e));
       progress?.updateFile(f, 0);
     }
   }
@@ -432,6 +449,16 @@ export async function processDirectory(
       file_count: discoveredFiles.length,
     },
   });
+
+  // End logging session
+  const sessionDuration = Date.now() - sessionStartTime;
+  const processedFileCount = files.length - skippedFiles;
+  logger.sessionEnd({
+    filesProcessed: processedFileCount,
+    totalChunks: totalChunksProcessed,
+    durationMs: sessionDuration,
+  });
+  logger.flush();
 
   progress?.finish();
 
