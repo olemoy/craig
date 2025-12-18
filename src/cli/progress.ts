@@ -66,6 +66,7 @@ function createBarReporter(): ProgressReporter {
   let bar: cliProgress.SingleBar | null = null;
   let updateInterval: NodeJS.Timeout | null = null;
   let lastBarUpdateTime = 0;
+  let lastYieldTime = 0;
   let stats: ProgressStats = {
     totalFiles: 0,
     processedFiles: 0,
@@ -94,14 +95,15 @@ function createBarReporter(): ProgressReporter {
     if (!bar) return;
 
     const now = Date.now();
+    const timeSinceLastUpdate = now - lastBarUpdateTime;
+
     // Throttle: Don't update more than once per 100ms unless forced
-    if (!force && now - lastBarUpdateTime < 100) {
+    if (!force && timeSinceLastUpdate < 100) {
       return;
     }
 
     lastBarUpdateTime = now;
     const elapsed = formatDuration(now - stats.startTime);
-    //const remaining = calculateETA(stats);
     const filename = shortenFilename(stats.currentFile || "");
 
     bar.update(stats.processedFiles, {
@@ -120,6 +122,7 @@ function createBarReporter(): ProgressReporter {
       stats.startTime = Date.now();
       stats.lastUpdateTime = Date.now();
       stats.processingRates = [];
+      lastYieldTime = Date.now();
 
       bar = multibar.create(totalFiles, 0, {
         elapsed: "0s",
@@ -127,9 +130,9 @@ function createBarReporter(): ProgressReporter {
         filename: "",
       });
 
-      // Start interval timer to update every second (respects 100ms throttle)
+      // Start interval timer to update every second (force to ensure it shows when timer fires)
       updateInterval = setInterval(() => {
-        updateBar(false);
+        updateBar(true);
       }, 1000);
     },
 
@@ -153,8 +156,19 @@ function createBarReporter(): ProgressReporter {
       }
       stats.lastUpdateTime = now;
 
-      // Update bar immediately on file complete (respects 100ms throttle)
-      updateBar(false);
+      // Yield to event loop every 100ms to allow timer to fire
+      const timeSinceYield = now - lastYieldTime;
+      if (timeSinceYield >= 100) {
+        process.stdout.write('');
+        lastYieldTime = now;
+      }
+
+      // Force update if more than 1 second since last bar update (ensures 1s max interval)
+      // Otherwise respect 100ms throttle
+      const timeSinceBarUpdate = now - lastBarUpdateTime;
+      const shouldForceUpdate = timeSinceBarUpdate >= 1000;
+
+      updateBar(shouldForceUpdate);
     },
 
     updatePhase(phase: ProgressStats["phase"], message?: string) {
