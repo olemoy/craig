@@ -162,6 +162,8 @@ export async function processDirectory(
   let skippedFiles = 0;
   let skippedDueToSize = 0;
   let skippedDueToError = 0;
+  let filesIngested = 0; // New files added to DB
+  let totalErrors = 0; // Total errors encountered
 
   // Start progress tracking
   progress?.start(files.length);
@@ -171,6 +173,22 @@ export async function processDirectory(
       const start = new Date();
       const meta = await detectFileType(f);
       const stat = await fs.promises.stat(f);
+
+      // Check if file exists in database and clean up failed attempts
+      let existingFile = await getFileByPath(repo.id, f);
+
+      // If file exists but has no chunks (failed previous attempt), delete it for clean retry
+      if (existingFile && meta.fileType !== 'binary') {
+        const { getChunkCount } = await import('../db/chunks.js');
+        const chunkCount = await getChunkCount(existingFile.id);
+        if (chunkCount === 0) {
+          log(`[${fmtTime(new Date())}] Cleaning up failed file for retry: ${f}`);
+          await deleteFileAndChunks(existingFile.id);
+          existingFile = null; // Treat as new file for re-insertion
+        }
+      }
+
+      const isNewFile = !existingFile;
 
       // Check file size before processing
       if (stat.size > DEFAULT_CONFIG.maxFileSizeBytes) {
@@ -202,9 +220,6 @@ export async function processDirectory(
         log(`[${fmtTime(start)}] Processing: ${f} (binary)`);
         const bin = await processBinary(f);
 
-        // Check if file exists for update
-        const existingFile = await getFileByPath(repo.id, f);
-
         if (existingFile) {
           // Update existing file
           await updateFileRecord({
@@ -235,6 +250,7 @@ export async function processDirectory(
             language: null,
             metadata: null,
           });
+          filesIngested++;
         }
 
         const end = new Date();
@@ -257,9 +273,7 @@ export async function processDirectory(
           progress?.warnLargeFile(f, chunks.length);
         }
 
-        // Check if file exists for update
-        log(`  → Checking if file exists in DB...`);
-        const existingFile = await getFileByPath(repo.id, f);
+        // Use existingFile from earlier check
         let fileRecord;
 
         if (existingFile) {
@@ -288,6 +302,7 @@ export async function processDirectory(
             language: meta.language ?? null,
             metadata: null,
           });
+          filesIngested++;
         }
         log(`  → File record saved (id: ${fileRecord.id})`);
 
@@ -377,6 +392,7 @@ export async function processDirectory(
       // Continue processing other files
       skippedFiles++;
       skippedDueToError++;
+      totalErrors++;
       progress?.updateFile(f, 0);
     }
   }
@@ -398,11 +414,11 @@ export async function processDirectory(
   if (!progress) {
     console.log(`\n✓ Ingestion complete for repository: ${repo.name}`);
     console.log(`  Total files in repository: ${discoveredFiles.length}`);
-    if (isDeltaIngestion) {
-      console.log(`  Files processed: ${filesToProcess.length - skippedFiles}`);
-    } else {
-      console.log(`  Files processed: ${files.length - skippedFiles}`);
-    }
+
+    const filesProcessed = files.length - skippedFiles;
+    console.log(`  Files processed: ${filesProcessed}`);
+    console.log(`  Files ingested (new): ${filesIngested}`);
+
     if (skippedFiles > 0) {
       console.log(`  Files skipped: ${skippedFiles}`);
       if (skippedDueToSize > 0) {
@@ -410,20 +426,32 @@ export async function processDirectory(
       }
       if (skippedDueToError > 0) {
         console.log(`    - Errors: ${skippedDueToError}`);
-        console.log(`\n  ⚠️  To retry failed files, run:`);
-        console.log(`     craig ingest ${root} --resume`);
       }
     }
-  } else if (skippedFiles > 0) {
-    // Show skipped files count in progress mode too
-    let skipMsg = `\n✓ Processing complete. Files skipped: ${skippedFiles}`;
-    if (skippedDueToSize > 0) {
-      skipMsg += ` (${skippedDueToSize} too large)`;
+
+    if (totalErrors > 0) {
+      console.log(`  Total errors: ${totalErrors}`);
+      console.log(`\n  ⚠️  To retry failed files, run:`);
+      console.log(`     craig ingest ${root} --resume`);
     }
-    if (skippedDueToError > 0) {
-      skipMsg += ` (${skippedDueToError} errors)`;
+  } else {
+    // Show summary in progress mode
+    let summaryMsg = `\n✓ Processing complete`;
+    summaryMsg += `\n  Files processed: ${files.length - skippedFiles}`;
+    summaryMsg += `\n  Files ingested (new): ${filesIngested}`;
+    if (skippedFiles > 0) {
+      summaryMsg += `\n  Files skipped: ${skippedFiles}`;
+      if (skippedDueToSize > 0) {
+        summaryMsg += ` (${skippedDueToSize} too large)`;
+      }
+      if (skippedDueToError > 0) {
+        summaryMsg += ` (${skippedDueToError} errors)`;
+      }
     }
-    progress.log(skipMsg);
+    if (totalErrors > 0) {
+      summaryMsg += `\n  Total errors: ${totalErrors}`;
+    }
+    progress.log(summaryMsg);
   }
 
   // Show error summary if there were any processing errors
