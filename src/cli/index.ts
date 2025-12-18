@@ -9,7 +9,7 @@ import { removeCmd } from './commands/remove.js';
 import { statsCmd } from './commands/stats.js';
 import { modelCmd } from './commands/model.js';
 import { filesCmd } from './commands/files.js';
-import { analyzeCmd } from './commands/analyze.js';
+// import { analyzeCmd } from './commands/analyze.js'; // Disabled - missing dependency
 import { configCmd } from './commands/config.js';
 
 function help() {
@@ -17,7 +17,6 @@ function help() {
   console.log('Commands:');
   console.log('  ingest <path> --name <name>           Ingest a repository');
   console.log('         [--verbose|-v] [--quiet|-q]      Progress display options');
-  console.log('  analyze <name|id>                     Analyze a repository and store results');
   console.log('  list [--format json|table]            List known repositories');
   console.log('  query <question> --repo <name|id>     Semantic search in repository');
   console.log('        [--limit <n>]                     (default limit: 5)');
@@ -46,10 +45,6 @@ async function main() {
     }
     if (cmd === 'ingest') {
       await ingestRepo(args.slice(1));
-      return;
-    }
-    if (cmd === 'analyze') {
-      await analyzeCmd(args.slice(1));
       return;
     }
     if (cmd === 'list') {

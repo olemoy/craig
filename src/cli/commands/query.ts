@@ -1,4 +1,4 @@
-import { query } from '../../mcp/tools/search.js';
+import { query } from '../../mcp/tools/query.js';
 import { getRepositoryByName, getRepositoryByPath, getRepository } from '../../db/repositories.js';
 import type { RepositoryId } from '../../db/types.js';
 import { toRepositoryId } from '../../db/types.js';
