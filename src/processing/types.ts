@@ -5,7 +5,7 @@ export interface FileRecord {
   size: number;
   mtimeMs: number;
   fileType: FileType;
-  language?: string | null;
+  language?: string | null; // File extension (e.g., '.py', '.sql')
   mime?: string | null;
 }
 
@@ -18,5 +18,5 @@ export interface ChunkRecord {
   startToken: number;
   endToken: number;
   overlapFromPrev: number;
-  language?: string | null;
+  language?: string | null; // File extension (e.g., '.py', '.sql')
 }

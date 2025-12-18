@@ -82,10 +82,11 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
 
   const totalEmbeddings = parseInt(embeddingsResult.rows[0]?.count ?? '0', 10);
 
-  // Get language distribution
-  const languagesResult = await client.query(
+  // Get file extension distribution for code files
+  // The 'language' column stores file extensions (e.g., '.py', '.sql', '.java')
+  const extensionsResult = await client.query(
     `SELECT
-      language,
+      language as extension,
       COUNT(*) as count
     FROM files
     WHERE repository_id = $1 AND language IS NOT NULL
@@ -94,10 +95,10 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
     [repo.id]
   );
 
-  const languages: Record<string, number> = {};
-  for (const row of languagesResult.rows) {
-    if (row.language) {
-      languages[row.language] = parseInt(row.count, 10);
+  const extensions: Record<string, number> = {};
+  for (const row of extensionsResult.rows) {
+    if (row.extension) {
+      extensions[row.extension] = parseInt(row.count, 10);
     }
   }
 
@@ -109,13 +110,13 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
     binaryFiles: fileStats.binary,
     totalChunks,
     totalEmbeddings,
-    languages,
+    extensions,
   };
 }
 
 export const getStatsTool = {
   name: 'stats',
-  description: 'Get comprehensive repository statistics and metrics. Parameters: repository (required, string - name/path/ID). Returns detailed breakdown including file counts by type (code/text/binary), language distribution, total chunks, and embeddings. Use for in-depth repository analysis.',
+  description: 'Get comprehensive repository statistics and metrics. Parameters: repository (required, string - name/path/ID). Returns detailed breakdown including file counts by type (code/text/binary), file extension distribution (.py, .sql, .java, etc.), total chunks, and embeddings. Use for in-depth repository analysis.',
   inputSchema: {
     type: 'object',
     properties: {

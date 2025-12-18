@@ -38,7 +38,7 @@ CREATE TABLE files (
   content_hash TEXT NOT NULL,
   size_bytes INTEGER,
   last_modified TIMESTAMP,
-  language TEXT,              -- Programming language for code files
+  language TEXT,              -- File extension for code files (e.g., '.py', '.sql', '.java')
   metadata JSONB,
   UNIQUE(repository_id, file_path)
 );

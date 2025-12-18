@@ -8,7 +8,7 @@ export interface SearchResult {
   repository: string;
   filePath: string;
   fileType: 'code' | 'text' | 'binary';
-  language: string | null;
+  language: string | null; // File extension for code files (e.g., '.py', '.sql')
   content: string;
   similarity: number;
 }
@@ -17,7 +17,7 @@ export interface FileInfoResult {
   path: string;
   absolutePath: string;
   fileType: 'code' | 'text' | 'binary';
-  language: string | null;
+  language: string | null; // File extension for code files (e.g., '.py', '.sql')
   size: number;
 }
 
@@ -29,14 +29,14 @@ export interface RepositoryStats {
   binaryFiles: number;
   totalChunks: number;
   totalEmbeddings: number;
-  languages: Record<string, number>;
+  extensions: Record<string, number>; // File extension distribution (e.g., {'.py': 10, '.sql': 5})
 }
 
 export interface SimilarCodeResult {
   repository: string;
   filePath: string;
   fileType: 'code' | 'text' | 'binary';
-  language: string | null;
+  language: string | null; // File extension for code files (e.g., '.py', '.sql')
   content: string;
   similarity: number;
 }

@@ -81,7 +81,7 @@ export interface File {
   content_hash: string;
   size_bytes: number | null;
   last_modified: Date | null;
-  language: string | null; // Programming language for code files
+  language: string | null; // File extension for code files (e.g., '.py', '.sql', '.java')
   metadata: Record<string, unknown> | null;
 }
 

@@ -2,12 +2,36 @@ import fs from 'fs';
 import path from 'path';
 import {FileType} from './types';
 
-const CODE_EXTENSIONS: Record<string, string> = {
-  '.ts': 'typescript', '.tsx': 'typescript',
-  '.js': 'javascript', '.jsx': 'javascript',
-  '.py': 'python', '.go': 'go', '.rs': 'rust',
-  '.java': 'java', '.cpp': 'cpp', '.c': 'c'
-};
+// Common code file extensions
+// We store the extension itself rather than mapping to language names
+const CODE_EXTENSIONS = new Set([
+  // JavaScript/TypeScript
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+  // Python
+  '.py', '.pyw', '.pyx',
+  // Java/JVM
+  '.java', '.kt', '.scala', '.groovy',
+  // C/C++
+  '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hxx',
+  // C#/.NET
+  '.cs', '.fs', '.vb',
+  // Go
+  '.go',
+  // Rust
+  '.rs',
+  // Ruby
+  '.rb', '.rake',
+  // PHP
+  '.php',
+  // Swift
+  '.swift',
+  // Shell
+  '.sh', '.bash', '.zsh',
+  // SQL
+  '.sql',
+  // Other common languages
+  '.r', '.R', '.dart', '.lua', '.pl', '.pm',
+]);
 
 const TEXT_EXTENSIONS = new Set(['.md', '.txt', '.json', '.yaml', '.yml']);
 const BINARY_EXTENSIONS = new Set([
@@ -27,7 +51,9 @@ const BINARY_EXTENSIONS = new Set([
 
 export async function detectFileType(filePath: string): Promise<{fileType: FileType; language?: string | null}> {
   const ext = path.extname(filePath).toLowerCase();
-  if (CODE_EXTENSIONS[ext]) return {fileType: 'code', language: CODE_EXTENSIONS[ext]};
+
+  // For code files, return the extension itself as the "language"
+  if (CODE_EXTENSIONS.has(ext)) return {fileType: 'code', language: ext};
   if (TEXT_EXTENSIONS.has(ext)) return {fileType: 'text', language: null};
   if (BINARY_EXTENSIONS.has(ext)) return {fileType: 'binary', language: null};
 

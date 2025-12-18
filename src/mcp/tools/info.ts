@@ -4,7 +4,7 @@
  */
 
 import { getRepositoryByName, getRepositoryByPath, getRepository } from '../../db/repositories.js';
-import { getFilesByRepository, getChunksByFile } from '../../db/index.js';
+import { getClient } from '../../db/client.js';
 import type { RepositoryId } from '../../db/types.js';
 import { toRepositoryId } from '../../db/types.js';
 import { createInvalidParamsError, createNotFoundError } from '../errors.js';
@@ -41,18 +41,29 @@ export async function getInfo(args: GetInfoArgs): Promise<InfoResult> {
     throw createNotFoundError(`Repository '${repository}' not found`);
   }
 
-  // Get files and count chunks
-  const files = await getFilesByRepository(repo.id);
-  let chunkCount = 0;
-  for (const f of files) {
-    const chunks = await getChunksByFile(f.id);
-    chunkCount += chunks.length;
-  }
+  const client = await getClient();
+
+  // Get file count
+  const fileCountResult = await client.query(
+    'SELECT COUNT(*) as count FROM files WHERE repository_id = $1',
+    [repo.id]
+  );
+  const fileCount = parseInt(fileCountResult.rows[0]?.count ?? '0', 10);
+
+  // Get chunk count
+  const chunkCountResult = await client.query(
+    `SELECT COUNT(*) as count
+    FROM chunks c
+    JOIN files f ON f.id = c.file_id
+    WHERE f.repository_id = $1`,
+    [repo.id]
+  );
+  const chunkCount = parseInt(chunkCountResult.rows[0]?.count ?? '0', 10);
 
   return {
     repository: repo.name,
     path: repo.path,
-    fileCount: files.length,
+    fileCount,
     chunkCount,
   };
 }
