@@ -17,6 +17,11 @@ export interface ChunkRecord {
   endChar: number;
   startToken: number;
   endToken: number;
+  startLine: number;
+  endLine: number;
   overlapFromPrev: number;
   language?: string | null; // File extension (e.g., '.py', '.sql')
+  symbolName?: string | null; // Name of function/class/interface extracted from chunk
+  symbolType?: string | null; // Type: 'function', 'class', 'interface', 'type', etc.
+  chunkType: string; // Semantic type: 'function', 'class', 'interface', 'type', 'variable', 'code', 'section'
 }
