@@ -76,7 +76,13 @@ Edit `config.json`:
 
 ### Advanced Setup (768/1024 Dimensions)
 
-For higher quality embeddings, see [docs/embedding-dimensions.md](docs/embedding-dimensions.md) for instructions on updating the database schema before first use.
+**As of v1.1.0, embedding dimensions are fully configurable!** You only need to:
+1. Update `config.json` with your desired dimensions
+2. Update the migration file: `src/db/migrations/001_initial_schema.sql` (line 77: `vector(384)` → `vector(YOUR_DIM)`)
+3. Delete the database: `rm -rf data/`
+4. Re-ingest your repositories
+
+For higher quality embeddings, see [docs/embedding-dimensions.md](docs/embedding-dimensions.md) for detailed instructions.
 
 ## Usage
 
@@ -85,6 +91,12 @@ For higher quality embeddings, see [docs/embedding-dimensions.md](docs/embedding
 **Ingest a repository:**
 ```bash
 bun src/cli/index.ts ingest /path/to/repo --name my-project
+
+# Resume interrupted ingestion (skips already-processed files)
+bun src/cli/index.ts ingest /path/to/repo --resume
+
+# Verbose output
+bun src/cli/index.ts ingest /path/to/repo --verbose
 ```
 
 **Search for code:**
@@ -106,6 +118,38 @@ bun src/cli/index.ts stats my-project
 **Update repository (incremental):**
 ```bash
 bun src/cli/index.ts update my-project
+```
+
+### Resume Interrupted Ingestion
+
+If ingestion is interrupted (crash, Ctrl-C, system shutdown), use the `--resume` flag to continue where you left off:
+
+```bash
+bun src/cli/index.ts ingest /path/to/repo --resume
+```
+
+**How it works:**
+- Checks which files already have embeddings in the database
+- Skips fully processed files (assumes they haven't changed)
+- Continues processing only incomplete or new files
+- Shows progress: "✓ Already processed: X | ⏭️ To process: Y"
+
+**When to use:**
+- Ingestion was interrupted or crashed
+- You want to continue a partial ingestion
+- You know files haven't changed and want to save time
+
+**When NOT to use:**
+- Files may have been modified (use regular `ingest` or `update` instead)
+- Starting a fresh ingestion of a new repository
+
+**Example output:**
+```
+Resume Analysis:
+  ✓ Already processed: 1523
+  ⏭️  To process: 47
+
+Resuming processing for 47 files...
 ```
 
 ### MCP Server (Claude Desktop Integration)
@@ -130,12 +174,34 @@ Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_deskt
 **Available MCP Tools:**
 - `search` - Semantic code search
 - `repos` - List indexed repositories
-- `files` - List files in repository
-- `directories` - Get directory structure
+- `files` - List files in repository (with pagination support)
+- `directories` - Get directory structure (with pagination support)
 - `read_file` - Read file content
 - `stats` - Repository statistics
 - `analyze` - Code metrics and language distribution
 - `similar` - Find similar code snippets
+
+**MCP Tool Pagination:**
+
+The `files` and `directories` tools support pagination for large repositories:
+
+```javascript
+// List first 100 files
+tools.files({ repository: "my-repo", limit: 100, offset: 0 })
+
+// List next 100 files
+tools.files({ repository: "my-repo", limit: 100, offset: 100 })
+
+// Response includes pagination metadata:
+{
+  "repository": "my-repo",
+  "total": 1523,        // Total files available
+  "count": 100,         // Files returned in this response
+  "files": [...],
+  "more": true,         // More results available
+  "next": 100           // Offset for next page
+}
+```
 
 ## Project Structure
 
@@ -257,11 +323,16 @@ Languages: TypeScript (45%), JavaScript (30%), JSON (15%), Markdown (10%)
 ### Dimension Mismatch Error
 
 ```
-Error: Embedding dimension mismatch: config specifies 768 dimensions,
-but database requires 384 dimensions.
+DatabaseError: Vector must be exactly 384 dimensions, got 768
 ```
 
-**Solution:** Either update your config to use a 384-dimension model, or delete the database (`rm -rf data/`) and follow the advanced setup instructions.
+**Solution:** Your config.json and database schema don't match. To change dimensions:
+1. Update `config.json` with desired dimensions
+2. Update `src/db/migrations/001_initial_schema.sql` line 77
+3. Delete database: `rm -rf data/`
+4. Re-ingest all repositories
+
+**Note:** As of v1.1.0, there's no hardcoded dimension validation. The system reads dimensions from config.json.
 
 ### Ollama Connection Error
 
@@ -315,6 +386,31 @@ bun build src/mcp/server.ts --target=node --outfile=dist/mcp-server.js
 - Binary files are detected but not indexed
 - Requires re-ingestion when changing embedding models
 - Single database instance (no distributed setup)
+
+## Changelog
+
+### v1.1.0 (Latest)
+
+**New Features:**
+- ✨ **Resume functionality** for interrupted ingestion (`--resume` flag)
+  - Skips already-processed files with embeddings
+  - Continues from where ingestion was interrupted
+  - Shows progress analysis before resuming
+
+- 📄 **MCP tool pagination** for files and directories
+  - `limit` and `offset` parameters for large repositories
+  - Optimized response format with shorter field names
+  - Pagination metadata: `total`, `count`, `more`, `next`
+
+- ⚙️ **Fully configurable embedding dimensions**
+  - No hardcoded dimension validation
+  - Dimensions read entirely from `config.json`
+  - Simplified setup process
+
+**Improvements:**
+- Token-efficient MCP responses (shorter field names)
+- Better error messages for dimension mismatches
+- Clearer migration file comments
 
 ## Roadmap
 
