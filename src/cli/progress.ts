@@ -127,9 +127,9 @@ function createBarReporter(): ProgressReporter {
         filename: "",
       });
 
-      // Start interval timer to update every second (force to bypass throttle)
+      // Start interval timer to update every second (respects 100ms throttle)
       updateInterval = setInterval(() => {
-        updateBar(true);
+        updateBar(false);
       }, 1000);
     },
 
