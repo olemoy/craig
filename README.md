@@ -138,6 +138,7 @@ bun src/cli/index.ts ingest /path/to/repo --resume
 - Ingestion was interrupted or crashed
 - You want to continue a partial ingestion
 - You know files haven't changed and want to save time
+- **Retrying failed files** - Files that errored during processing
 
 **When NOT to use:**
 - Files may have been modified (use regular `ingest` or `update` instead)
@@ -145,11 +146,23 @@ bun src/cli/index.ts ingest /path/to/repo --resume
 
 **Example output:**
 ```
-Resume Analysis:
+Resuming ingestion:
   ✓ Already processed: 1523
-  ⏭️  To process: 47
+  ⏭️  To process:        47
 
-Resuming processing for 47 files...
+Starting to process 47 remaining files...
+```
+
+**Retrying failed files:**
+
+If some files fail during ingestion, they won't have embeddings and will automatically be retried when you run with `--resume`:
+
+```bash
+# After failed ingestion with errors
+bun src/cli/index.ts ingest /path/to/repo --resume
+
+# Failed files will be included in "To process" count
+# Successfully processed files are skipped
 ```
 
 ### MCP Server (Claude Desktop Integration)
@@ -344,6 +357,22 @@ Error: Failed to connect to Ollama at http://localhost:11434
 1. Check Ollama is running: `ollama list`
 2. Verify baseUrl in config.json
 3. Pull the model: `ollama pull all-minilm`
+
+### Files Failed During Ingestion
+
+```
+ERROR: Error processing /path/to/file.ts:
+  SyntaxError: Unexpected token
+```
+
+**Solution:** Failed files will not have embeddings. To retry them:
+
+```bash
+# Resume ingestion - failed files will be retried
+bun src/cli/index.ts ingest /path/to/repo --resume
+```
+
+Files that failed will be included in the "To process" count since they don't have embeddings.
 
 ### Empty Search Results
 

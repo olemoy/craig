@@ -77,7 +77,7 @@ export async function processDirectory(
     // Resume mode: skip files that already have embeddings
     const resumeAnalysis = await analyzeResume(repo, discoveredFiles);
 
-    const resumeMsg = `Resume Analysis:\n  ✓ Already processed: ${resumeAnalysis.alreadyProcessed.length}\n  ⏭️  To process: ${resumeAnalysis.toProcess.length}`;
+    const resumeMsg = `Resuming ingestion:\n  ✓ Already processed: ${resumeAnalysis.alreadyProcessed.length}\n  ⏭️  To process:        ${resumeAnalysis.toProcess.length}`;
     if (progress) {
       progress.log(resumeMsg);
     } else {
@@ -100,7 +100,7 @@ export async function processDirectory(
       return;
     }
 
-    const procMsg = `Resuming processing for ${filesToProcess.length} files...`;
+    const procMsg = `Starting to process ${filesToProcess.length} remaining files...`;
     if (progress) {
       progress.log(procMsg);
     } else {
@@ -335,7 +335,20 @@ export async function processDirectory(
         progress?.updateFile(f, chunks.length);
       }
     } catch (e) {
-      const errMsg = `Error processing ${f}: ${e}`;
+      // Detailed error message for console
+      let errMsg: string;
+      if (e instanceof Error) {
+        errMsg = `Error processing ${f}:\n  ${e.name}: ${e.message}`;
+        if (e.stack) {
+          // Show first line of stack trace for context
+          const stackLine = e.stack.split('\n')[1]?.trim();
+          if (stackLine) {
+            errMsg += `\n  at ${stackLine}`;
+          }
+        }
+      } else {
+        errMsg = `Error processing ${f}: ${String(e)}`;
+      }
 
       // Log to error file
       await logProcessingError({
@@ -355,7 +368,7 @@ export async function processDirectory(
       if (progress) {
         progress.error(errMsg);
       } else {
-        console.error(errMsg);
+        console.error(`ERROR: ${errMsg}`);
       }
 
       // Continue processing other files
@@ -386,6 +399,8 @@ export async function processDirectory(
     }
     if (skippedFiles > 0) {
       console.log(`  Files skipped: ${skippedFiles}`);
+      console.log(`\n  ⚠️  To retry failed files, run:`);
+      console.log(`     craig ingest ${root} --resume`);
     }
   } else if (skippedFiles > 0) {
     // Show skipped files count in progress mode too
