@@ -1,20 +1,20 @@
 /**
- * get_file_context tool implementation
- * Retrieves complete file content with metadata
+ * file_info tool implementation
+ * Retrieves file metadata including absolute path for agent to access
  */
 
 import { getClient } from '../../db/client.js';
 import { getRepositoryByPath, getRepositoryByName, getRepository } from '../../db/repositories.js';
-import type { FileContextResult } from '../types.js';
+import type { FileInfoResult } from '../types.js';
 import { toRepositoryId } from '../../db/types.js';
 import { createInvalidParamsError, createNotFoundError } from '../errors.js';
 
-export interface GetFileContextArgs {
+export interface GetFileInfoArgs {
   filePath: string;
   repository: string;
 }
 
-export async function getFileContext(args: GetFileContextArgs): Promise<FileContextResult> {
+export async function getFileInfo(args: GetFileInfoArgs): Promise<FileInfoResult> {
   const { filePath, repository } = args;
 
   if (!filePath || filePath.trim().length === 0) {
@@ -39,24 +39,23 @@ export async function getFileContext(args: GetFileContextArgs): Promise<FileCont
     throw createNotFoundError(`Repository '${repository}' not found`);
   }
 
-  // Query file
+  // Build absolute path from relative path
+  const repoPath = repo.path.endsWith('/') ? repo.path : repo.path + '/';
+  const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+  const absolutePath = repoPath + normalizedPath;
+
+  // Query file using absolute path
   const client = await getClient();
   const result = await client.query(
     `SELECT
       f.id,
       f.file_path,
       f.file_type,
-      f.content,
-      f.binary_metadata,
       f.size_bytes,
-      f.last_modified,
-      f.language,
-      r.name as repository_name,
-      r.id as repository_id
+      f.language
     FROM files f
-    JOIN repositories r ON r.id = f.repository_id
     WHERE f.repository_id = $1 AND f.file_path = $2`,
-    [repo.id, filePath]
+    [repo.id, absolutePath]
   );
 
   if (result.rows.length === 0) {
@@ -65,31 +64,29 @@ export async function getFileContext(args: GetFileContextArgs): Promise<FileCont
 
   const file = result.rows[0];
 
+  // Return metadata for agent to access file directly
   return {
-    repository: file.repository_name,
-    filePath: file.file_path,
+    path: normalizedPath,
+    absolutePath: file.file_path,
     fileType: file.file_type,
     language: file.language,
-    content: file.file_type === 'binary'
-      ? '(Binary file)'
-      : file.content,
     size: file.size_bytes,
   };
 }
 
-export const getFileContextTool = {
-  name: 'read_file',
-  description: 'Read complete file content from repository. Parameters: filePath (required, string - relative path within repo), repository (required, string - name/path/ID). Returns full file content with metadata (type, language, size). Use after identifying files via query or files tool.',
+export const getFileInfoTool = {
+  name: 'file_info',
+  description: 'Get file metadata and absolute path for direct access. Parameters: filePath (required, string - relative path like "src/main.ts" or "README.md"), repository (required, string - name/path/ID). Returns: path (relative), absolutePath (for agent to read), fileType (code/text/binary), language, size (bytes). Agent should use returned absolutePath with its Read tool to access file content.',
   inputSchema: {
     type: 'object',
     properties: {
       filePath: {
         type: 'string',
-        description: 'File path in repository',
+        description: 'Relative file path in repository (e.g., "README.md", "src/main.ts")',
       },
       repository: {
         type: 'string',
-        description: 'Repository name or path',
+        description: 'Repository name, path, or ID',
       },
     },
     required: ['filePath', 'repository'],

@@ -1,11 +1,11 @@
 /**
- * get_stats tool implementation
- * Gets statistics for a repository
+ * stats tool implementation
+ * Provides comprehensive repository statistics and metrics
  */
 
-import { getRepositoryByName, getRepositoryByPath, getRepository } from '../../db/repositories.js';
-import { getFilesByRepository, getChunksByFile } from '../../db/index.js';
-import type { RepositoryId } from '../../db/types.js';
+import { getClient } from '../../db/client.js';
+import { getRepositoryByPath, getRepositoryByName, getRepository } from '../../db/repositories.js';
+import type { RepositoryStats } from '../types.js';
 import { toRepositoryId } from '../../db/types.js';
 import { createInvalidParamsError, createNotFoundError } from '../errors.js';
 
@@ -13,20 +13,14 @@ export interface GetStatsArgs {
   repository: string;
 }
 
-export interface StatsResult {
-  repository: string;
-  fileCount: number;
-  chunkCount: number;
-}
-
-export async function getStats(args: GetStatsArgs): Promise<StatsResult> {
+export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
   const { repository } = args;
 
   if (!repository || repository.trim().length === 0) {
-    throw createInvalidParamsError('repository parameter is required');
+    throw createInvalidParamsError('repository parameter is required and must not be empty');
   }
 
-  // Look up repository by name, path, or UUID
+  // Try to find repository by name, path, or UUID
   let repo = await getRepositoryByName(repository);
   if (!repo) repo = await getRepositoryByPath(repository);
   if (!repo) {
@@ -40,30 +34,94 @@ export async function getStats(args: GetStatsArgs): Promise<StatsResult> {
     throw createNotFoundError(`Repository '${repository}' not found`);
   }
 
-  // Get files and count chunks
-  const files = await getFilesByRepository(repo.id);
-  let chunkCount = 0;
-  for (const f of files) {
-    const chunks = await getChunksByFile(f.id);
-    chunkCount += chunks.length;
+  const client = await getClient();
+
+  // Get file counts by type
+  const fileStatsResult = await client.query(
+    `SELECT
+      file_type,
+      COUNT(*) as count
+    FROM files
+    WHERE repository_id = $1
+    GROUP BY file_type`,
+    [repo.id]
+  );
+
+  const fileStats: Record<string, number> = {
+    code: 0,
+    text: 0,
+    binary: 0,
+  };
+
+  for (const row of fileStatsResult.rows) {
+    fileStats[row.file_type] = parseInt(row.count, 10);
+  }
+
+  const totalFiles = fileStats.code + fileStats.text + fileStats.binary;
+
+  // Get total chunks
+  const chunksResult = await client.query(
+    `SELECT COUNT(*) as count
+    FROM chunks c
+    JOIN files f ON f.id = c.file_id
+    WHERE f.repository_id = $1`,
+    [repo.id]
+  );
+
+  const totalChunks = parseInt(chunksResult.rows[0]?.count ?? '0', 10);
+
+  // Get total embeddings
+  const embeddingsResult = await client.query(
+    `SELECT COUNT(*) as count
+    FROM embeddings e
+    JOIN chunks c ON c.id = e.chunk_id
+    JOIN files f ON f.id = c.file_id
+    WHERE f.repository_id = $1`,
+    [repo.id]
+  );
+
+  const totalEmbeddings = parseInt(embeddingsResult.rows[0]?.count ?? '0', 10);
+
+  // Get language distribution
+  const languagesResult = await client.query(
+    `SELECT
+      language,
+      COUNT(*) as count
+    FROM files
+    WHERE repository_id = $1 AND language IS NOT NULL
+    GROUP BY language
+    ORDER BY count DESC`,
+    [repo.id]
+  );
+
+  const languages: Record<string, number> = {};
+  for (const row of languagesResult.rows) {
+    if (row.language) {
+      languages[row.language] = parseInt(row.count, 10);
+    }
   }
 
   return {
     repository: repo.name,
-    fileCount: files.length,
-    chunkCount,
+    totalFiles,
+    codeFiles: fileStats.code,
+    textFiles: fileStats.text,
+    binaryFiles: fileStats.binary,
+    totalChunks,
+    totalEmbeddings,
+    languages,
   };
 }
 
 export const getStatsTool = {
   name: 'stats',
-  description: 'Get repository statistics (files, chunks, embeddings). Parameters: repository (required, string - name/path/ID). Returns counts for files, chunks, and embeddings. Useful for understanding repository ingestion status.',
+  description: 'Get comprehensive repository statistics and metrics. Parameters: repository (required, string - name/path/ID). Returns detailed breakdown including file counts by type (code/text/binary), language distribution, total chunks, and embeddings. Use for in-depth repository analysis.',
   inputSchema: {
     type: 'object',
     properties: {
       repository: {
         type: 'string',
-        description: 'Repository name, path, or ID',
+        description: 'Repository name or path',
       },
     },
     required: ['repository'],

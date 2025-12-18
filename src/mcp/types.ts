@@ -13,12 +13,11 @@ export interface SearchResult {
   similarity: number;
 }
 
-export interface FileContextResult {
-  repository: string;
-  filePath: string;
+export interface FileInfoResult {
+  path: string;
+  absolutePath: string;
   fileType: 'code' | 'text' | 'binary';
   language: string | null;
-  content: string | null;
   size: number;
 }
 
@@ -43,7 +42,7 @@ export interface SimilarCodeResult {
 }
 
 export interface RepositoryInfo {
+  id: string;
   name: string;
-  path: string;
   fileCount: number;
 }

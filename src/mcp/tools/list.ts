@@ -25,15 +25,15 @@ export async function listRepositories(): Promise<RepositoryInfo[]> {
   `);
 
   return result.rows.map((row: any) => ({
+    id: row.id,
     name: row.name,
-    path: row.path,
     fileCount: parseInt(row.file_count, 10),
   }));
 }
 
 export const listRepositoriesTool = {
   name: 'repos',
-  description: 'List all indexed repositories. No parameters required. Returns array of repositories with names, paths, and file counts. Use as starting point to discover available repositories before using other tools.',
+  description: 'List all indexed repositories. No parameters required. Returns array of repositories with id, name, and file count (absolute path excluded - use info tool if needed). Use as starting point to discover available repositories before using other tools.',
   inputSchema: {
     type: 'object',
     properties: {},

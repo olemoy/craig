@@ -1,5 +1,5 @@
 /**
- * directories tool implementation
+ * dirs tool implementation
  * Returns directory structure without files
  */
 
@@ -125,7 +125,7 @@ export async function getDirectories(args: GetDirectoriesArgs): Promise<GetDirec
 }
 
 export const getDirectoriesTool = {
-  name: 'directories',
+  name: 'dirs',
   description: 'Get directory structure (no files). Parameters: repository (required, string - name/path/ID), path (optional, string - filter to subdirectory), depth (optional, number, default: 0 - where 0=root only, 1=one level down, etc.), limit (optional, number, default: 100 - keep low to avoid context bloat), offset (optional, number, default: 0 - for pagination). Returns paginated results. Start with root-level exploration (depth=0), then drill down incrementally.',
   inputSchema: {
     type: 'object',

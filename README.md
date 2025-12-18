@@ -185,18 +185,18 @@ Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_deskt
 ```
 
 **Available MCP Tools:**
-- `search` - Semantic code search
-- `repos` - List indexed repositories
-- `files` - List files in repository (with pagination support)
-- `directories` - Get directory structure (with pagination support)
-- `read_file` - Read file content
-- `stats` - Repository statistics
-- `analyze` - Code metrics and language distribution
-- `similar` - Find similar code snippets
+- `query` - Semantic code search using natural language
+- `repos` - List indexed repositories (returns id, name, fileCount)
+- `files` - List files in repository (default limit: 100, with pagination)
+- `dirs` - Get directory structure (default depth: 0 - root only, with pagination)
+- `info` - Basic repository info (includes absolute path)
+- `stats` - Comprehensive repository statistics and metrics
+- `file_info` - Get file metadata with absolute path (for agent to access directly)
+- `similar` - Find similar code snippets using semantic similarity
 
 **MCP Tool Pagination:**
 
-The `files` and `directories` tools support pagination for large repositories:
+The `files` and `dirs` tools support pagination for large repositories:
 
 ```javascript
 // List first 100 files

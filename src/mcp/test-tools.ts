@@ -5,8 +5,8 @@
  */
 
 import { query } from './tools/query.js';
-import { getFileContext } from './tools/context.js';
-import { analyzeCodebase } from './tools/analyze.js';
+import { getFileInfo } from './tools/context.js';
+import { getStats } from './tools/stats.js';
 import { findSimilar } from './tools/similar.js';
 import { listRepositories } from './tools/list.js';
 
@@ -31,9 +31,9 @@ async function testTools() {
 
     const testRepo = repos[0].name;
 
-    // Test 2: Analyze codebase
-    console.log(`\n[2/5] Testing analyze_codebase for "${testRepo}"...`);
-    const stats = await analyzeCodebase({ repository: testRepo });
+    // Test 2: Get stats
+    console.log(`\n[2/5] Testing stats for "${testRepo}"...`);
+    const stats = await getStats({ repository: testRepo });
     console.log(`✓ Repository stats:`);
     console.log(`  - Total files: ${stats.totalFiles}`);
     console.log(`  - Code files: ${stats.codeFiles}`);
@@ -53,19 +53,20 @@ async function testTools() {
       console.log(`    Similarity: ${(searchResults[0].similarity * 100).toFixed(1)}%`);
     }
 
-    // Test 4: Get file context (if we have search results)
+    // Test 4: Get file info (if we have search results)
     if (searchResults.length > 0) {
-      console.log(`\n[4/5] Testing get_file_context...`);
-      const fileContext = await getFileContext({
+      console.log(`\n[4/5] Testing file_info...`);
+      const fileInfo = await getFileInfo({
         filePath: searchResults[0].filePath,
         repository: testRepo,
       });
-      console.log(`✓ Retrieved file: ${fileContext.filePath}`);
-      console.log(`  - Type: ${fileContext.fileType}`);
-      console.log(`  - Language: ${fileContext.language || 'unknown'}`);
-      console.log(`  - Size: ${fileContext.size} bytes`);
+      console.log(`✓ Retrieved file info: ${fileInfo.path}`);
+      console.log(`  - Absolute path: ${fileInfo.absolutePath}`);
+      console.log(`  - Type: ${fileInfo.fileType}`);
+      console.log(`  - Language: ${fileInfo.language || 'unknown'}`);
+      console.log(`  - Size: ${fileInfo.size} bytes`);
     } else {
-      console.log(`\n[4/5] Skipping get_file_context (no search results)`);
+      console.log(`\n[4/5] Skipping file_info (no search results)`);
     }
 
     // Test 5: Find similar

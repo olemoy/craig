@@ -12,13 +12,13 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { query, queryTool } from './tools/query.js';
-import { getFileContext, getFileContextTool } from './tools/context.js';
-import { analyzeCodebase, analyzeCodebaseTool } from './tools/analyze.js';
+import { getFileInfo, getFileInfoTool } from './tools/context.js';
+import { getStats, getStatsTool } from './tools/stats.js';
 import { findSimilar, findSimilarTool } from './tools/similar.js';
 import { listRepositories, listRepositoriesTool } from './tools/list.js';
 import { listFiles, listFilesTool } from './tools/files.js';
-import { getDirectories, getDirectoriesTool } from './tools/directories.js';
-import { getStats, getStatsTool } from './tools/stats.js';
+import { getDirectories, getDirectoriesTool } from './tools/dirs.js';
+import { getInfo, getInfoTool } from './tools/info.js';
 import { handleError } from './errors.js';
 
 // Server instance
@@ -42,9 +42,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       listRepositoriesTool,
       listFilesTool,
       getDirectoriesTool,
+      getInfoTool,
       getStatsTool,
-      getFileContextTool,
-      analyzeCodebaseTool,
+      getFileInfoTool,
       findSimilarTool,
     ],
   };
@@ -92,8 +92,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'directories': {
+      case 'dirs': {
         const result = await getDirectories(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+
+      case 'info': {
+        const result = await getInfo(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+
+      case 'file_info': {
+        const result = await getFileInfo(args as any);
         return {
           content: [
             {
@@ -106,30 +130,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'stats': {
         const result = await getStats(args as any);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result),
-            },
-          ],
-        };
-      }
-
-      case 'read_file': {
-        const result = await getFileContext(args as any);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result),
-            },
-          ],
-        };
-      }
-
-      case 'analyze': {
-        const result = await analyzeCodebase(args as any);
         return {
           content: [
             {
