@@ -5,6 +5,7 @@ import {detectFileType} from './type-detector';
 import {readTextFile} from './text-processor';
 import {processBinary} from './binary-processor';
 import {chunkText} from './chunker';
+import {sha256Hex} from './hasher.js';
 import {DEFAULT_CONFIG} from './config';
 import {insertRepository, getRepositoryByPath, updateRepository} from '../db/repositories.js';
 import {insertFile, updateFile as updateFileRecord, getFileByPath} from '../db/files.js';
@@ -110,11 +111,13 @@ export async function processDirectory(
   } else if (isDeltaIngestion) {
     const delta = await analyzeDelta(repo, discoveredFiles);
 
-    const deltaMsg = `Delta Analysis:\n  📄 Unchanged: ${delta.unchanged.length}\n  ✏️  Modified:  ${delta.toUpdate.length}\n  ➕ New:       ${delta.toAdd.length}\n  ➖ Deleted:   ${delta.toDelete.length}`;
-    if (progress) {
-      progress.log(deltaMsg);
-    } else {
-      console.log(deltaMsg);
+    const deltaMsg = `Delta Analysis: 📄 Unchanged: ${delta.unchanged.length}  ✏️ Modified: ${delta.toUpdate.length}  ➕ New: ${delta.toAdd.length}  ➖ Deleted: ${delta.toDelete.length}`;
+    console.log(deltaMsg);
+
+    // Provide guidance if many files are marked as modified
+    if (delta.toUpdate.length > 0 && delta.toUpdate.length > delta.toAdd.length * 0.5) {
+      const tipMsg = '\nℹ️  Tip: If many files show as modified but haven\'t changed, you may need to re-ingest after the recent hash calculation fix.';
+      console.log(tipMsg);
     }
 
     // Delete removed files
@@ -138,12 +141,18 @@ export async function processDirectory(
     filesToProcess = [...delta.toAdd, ...delta.toUpdate];
 
     if (filesToProcess.length === 0) {
-      const msg = '✓ Repository is up to date, no changes detected.';
-      if (progress) {
-        progress.log(msg);
-      } else {
-        console.log(msg);
+      console.log('✓ Repository is up to date, no changes detected.');
+
+      // Provide specific feedback about what wasn't found
+      if (delta.toAdd.length === 0 && delta.toUpdate.length === 0) {
+        console.log('  No new files or modifications found.');
       }
+
+      // Helpful tip for users
+      console.log('\nℹ️  If this seems incorrect, you can drop and re-ingest the repository:');
+      console.log('  1. Delete the repository from the database');
+      console.log('  2. Run ingestion again to do a complete re-index');
+
       await updateRepository({
         id: repo.id,
         metadata: { last_checked: new Date().toISOString() },
@@ -151,7 +160,16 @@ export async function processDirectory(
       return;
     }
 
-    const procMsg = `Processing ${filesToProcess.length} changed files...`;
+    // Provide clearer messaging about what will be processed
+    let procMsg = `Processing ${filesToProcess.length} changed file${filesToProcess.length === 1 ? '' : 's'}...`;
+    if (delta.toAdd.length > 0 && delta.toUpdate.length === 0) {
+      procMsg = `Processing ${delta.toAdd.length} new file${delta.toAdd.length === 1 ? '' : 's'}...`;
+    } else if (delta.toAdd.length === 0 && delta.toUpdate.length > 0) {
+      procMsg = `Processing ${delta.toUpdate.length} modified file${delta.toUpdate.length === 1 ? '' : 's'}...`;
+    } else if (delta.toAdd.length > 0 && delta.toUpdate.length > 0) {
+      procMsg = `Processing ${delta.toAdd.length} new and ${delta.toUpdate.length} modified file${delta.toUpdate.length === 1 ? '' : 's'}...`;
+    }
+
     if (progress) {
       progress.log(procMsg);
     } else {
@@ -310,6 +328,9 @@ export async function processDirectory(
           progress?.warnLargeFile(f, chunks.length);
         }
 
+        // Calculate proper file content hash (hash of entire normalized text)
+        const fileHash = sha256Hex(txt);
+
         // Use existingFile from earlier check
         let fileRecord;
 
@@ -319,7 +340,7 @@ export async function processDirectory(
           fileRecord = await updateFileRecord({
             id: existingFile.id,
             content: txt,
-            content_hash: chunks.length > 0 ? chunks[0].chunkHash : '',
+            content_hash: fileHash,
             size_bytes: stat.size,
             last_modified: stat.mtime,
             language: meta.language ?? null,
@@ -333,7 +354,7 @@ export async function processDirectory(
             file_type: meta.fileType === 'code' ? 'code' : 'text',
             content: txt,
             binary_metadata: null,
-            content_hash: chunks.length > 0 ? chunks[0].chunkHash : '',
+            content_hash: fileHash,
             size_bytes: stat.size,
             last_modified: stat.mtime,
             language: meta.language ?? null,

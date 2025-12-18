@@ -64,9 +64,11 @@ function shortenFilename(filePath: string, maxLength: number = 40): string {
 // Progress bar mode - fixed display with stats
 function createBarReporter(): ProgressReporter {
   let bar: cliProgress.SingleBar | null = null;
-  let updateInterval: NodeJS.Timeout | null = null;
-  let lastBarUpdateTime = 0;
-  let lastYieldTime = 0;
+  let spinnerInterval: NodeJS.Timeout | null = null;
+  let spinnerFrameIndex = 0;
+  let lastSpinnerFrameTime = 0;
+  const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  const SPINNER_INTERVAL = 100; // ms between frame changes
   let stats: ProgressStats = {
     totalFiles: 0,
     processedFiles: 0,
@@ -83,32 +85,36 @@ function createBarReporter(): ProgressReporter {
       clearOnComplete: false,
       hideCursor: true,
       format:
-        " [ {bar} ] {percentage}% | {value}/{total} files |  ⏱ {elapsed} | {filename}",
+        " {spinner} [ {bar} ] {percentage}% | {value}/{total} files | ⏱ {elapsed} | ETA: {eta_formatted} | {filename}",
       barCompleteChar: "\u2588",
       barIncompleteChar: "\u2591",
+      etaBuffer: 20, // Increase buffer for more stable ETA (default 10)
     },
     cliProgress.Presets.shades_classic,
   );
 
-  // Shared function to update the progress bar
-  function updateBar(force = false) {
+  // Update spinner frame and progress bar
+  // Uses yocto-spinner approach: only rotate frame if enough time elapsed
+  function updateSpinner() {
     if (!bar) return;
 
     const now = Date.now();
-    const timeSinceLastUpdate = now - lastBarUpdateTime;
 
-    // Throttle: Don't update more than once per 100ms unless forced
-    if (!force && timeSinceLastUpdate < 100) {
-      return;
+    // Only advance frame if enough time has passed (like yocto-spinner)
+    if (lastSpinnerFrameTime === 0 || now - lastSpinnerFrameTime >= SPINNER_INTERVAL) {
+      spinnerFrameIndex = (spinnerFrameIndex + 1) % spinnerFrames.length;
+      lastSpinnerFrameTime = now;
     }
 
-    lastBarUpdateTime = now;
+    // Update bar with current state (whatever file is being processed now)
     const elapsed = formatDuration(now - stats.startTime);
     const filename = shortenFilename(stats.currentFile || "");
+    const spinner = spinnerFrames[spinnerFrameIndex];
 
     bar.update(stats.processedFiles, {
       elapsed,
       filename,
+      spinner,
     });
   }
 
@@ -122,22 +128,23 @@ function createBarReporter(): ProgressReporter {
       stats.startTime = Date.now();
       stats.lastUpdateTime = Date.now();
       stats.processingRates = [];
-      lastYieldTime = Date.now();
 
       bar = multibar.create(totalFiles, 0, {
         elapsed: "0s",
-        remaining: "N/A",
         filename: "",
+        spinner: spinnerFrames[0],
       });
 
-      // Start interval timer to update every second (force to ensure it shows when timer fires)
-      updateInterval = setInterval(() => {
-        updateBar(true);
-      }, 1000);
+      // Start spinner animation (100ms tick - only update source)
+      spinnerInterval = setInterval(() => {
+        updateSpinner();
+      }, 100);
     },
 
     updateFile(filePath: string, chunks: number) {
       const now = Date.now();
+
+      // Update stats
       stats.processedFiles++;
       stats.totalChunks += chunks;
       stats.totalEmbeddings += chunks;
@@ -156,19 +163,8 @@ function createBarReporter(): ProgressReporter {
       }
       stats.lastUpdateTime = now;
 
-      // Yield to event loop every 100ms to allow timer to fire
-      const timeSinceYield = now - lastYieldTime;
-      if (timeSinceYield >= 100) {
-        process.stdout.write('');
-        lastYieldTime = now;
-      }
-
-      // Force update if more than 1 second since last bar update (ensures 1s max interval)
-      // Otherwise respect 100ms throttle
-      const timeSinceBarUpdate = now - lastBarUpdateTime;
-      const shouldForceUpdate = timeSinceBarUpdate >= 1000;
-
-      updateBar(shouldForceUpdate);
+      // Update display (spinner will only rotate frame if >= 100ms elapsed)
+      updateSpinner();
     },
 
     updatePhase(phase: ProgressStats["phase"], message?: string) {
@@ -192,10 +188,10 @@ function createBarReporter(): ProgressReporter {
     },
 
     finish() {
-      // Clear the interval timer
-      if (updateInterval) {
-        clearInterval(updateInterval);
-        updateInterval = null;
+      // Clear the spinner interval
+      if (spinnerInterval) {
+        clearInterval(spinnerInterval);
+        spinnerInterval = null;
       }
 
       // Final update to show completion
@@ -203,8 +199,8 @@ function createBarReporter(): ProgressReporter {
       if (bar) {
         bar.update(stats.totalFiles, {
           elapsed,
-          remaining: "Done!",
           filename: "",
+          spinner: "✓", // Show checkmark when complete
         });
       }
 
@@ -226,7 +222,10 @@ function createBarReporter(): ProgressReporter {
         message.includes("✓") ||
         message.includes("repository") ||
         message.includes("Delta") ||
-        message.includes("File size")
+        message.includes("File size") ||
+        message.includes("Processing") ||
+        message.includes("ℹ️") ||
+        message.includes("Tip:")
       ) {
         multibar.log(message + "\n");
       }

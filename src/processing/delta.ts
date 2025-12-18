@@ -9,6 +9,7 @@ import { getFilesByRepository, deleteFile } from '../db/files.js';
 import { deleteChunksByFile } from '../db/chunks.js';
 import type { Repository, RepositoryId, File } from '../db/types.js';
 import { sha256Hex } from './hasher.js';
+import { readTextFile } from './text-processor.js';
 
 export interface DeltaStats {
   unchanged: number;
@@ -96,22 +97,33 @@ export async function analyzeDelta(
       toAdd.push(filePath);
     } else {
       // File exists - check if modified
-      const stat = await fs.promises.stat(filePath);
-      const lastModified = dbFile.last_modified;
+      const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(repo.path, filePath);
+      const stat = await fs.promises.stat(absolutePath);
 
-      // Compare timestamps at second precision (to avoid filesystem/db precision differences)
-      const fileModTime = Math.floor(stat.mtime.getTime() / 1000);
-      const dbModTime = lastModified ? Math.floor(new Date(lastModified).getTime() / 1000) : 0;
-
-      if (!lastModified || fileModTime > dbModTime) {
-        // File modified since last ingestion
-        toUpdate.push(filePath);
-      } else if (stat.size !== dbFile.size_bytes) {
-        // Size changed
+      // Fast path: if size changed, definitely modified
+      if (stat.size !== dbFile.size_bytes) {
         toUpdate.push(filePath);
       } else {
-        // Unchanged
-        unchanged.push(filePath);
+        // Size is same - hash content to be sure (handles text changes with same byte count)
+        let currentHash: string;
+
+        if (dbFile.file_type === 'text' || dbFile.file_type === 'code') {
+          // For text/code files, normalize text before hashing (same as during ingestion)
+          const txt = await readTextFile(absolutePath);
+          currentHash = sha256Hex(txt);
+        } else {
+          // For binary files, hash raw buffer as binary string
+          const fileContent = await fs.promises.readFile(absolutePath);
+          currentHash = sha256Hex(fileContent.toString('binary'));
+        }
+
+        if (currentHash !== dbFile.content_hash) {
+          // Content has actually changed
+          toUpdate.push(filePath);
+        } else {
+          // Content unchanged
+          unchanged.push(filePath);
+        }
       }
     }
   }
