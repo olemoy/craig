@@ -3,7 +3,7 @@
  * Provides a fixed progress bar with real-time stats
  */
 
-import cliProgress from 'cli-progress';
+import cliProgress from "cli-progress";
 
 export interface ProgressStats {
   totalFiles: number;
@@ -11,27 +11,33 @@ export interface ProgressStats {
   totalChunks: number;
   totalEmbeddings: number;
   currentFile?: string;
-  phase?: 'discovery' | 'processing' | 'cleanup' | 'complete';
+  phase?: "discovery" | "processing" | "cleanup" | "complete";
   startTime: number;
   lastUpdateTime: number;
-  processingRates: number[];  // Sliding window for smoothed ETA
+  processingRates: number[]; // Sliding window for smoothed ETA
 }
 
 export interface ProgressReporter {
   start(totalFiles: number): void;
   updateFile(filePath: string, chunks: number): void;
-  updatePhase(phase: ProgressStats['phase'], message?: string): void;
+  updatePhase(phase: ProgressStats["phase"], message?: string): void;
   warnLargeFile(fileName: string, estimatedChunks: number): void;
-  updateChunkProgress(fileName: string, processedChunks: number, totalChunks: number): void;
+  updateChunkProgress(
+    fileName: string,
+    processedChunks: number,
+    totalChunks: number,
+  ): void;
   finish(): void;
   log(message: string): void;
   error(message: string): void;
 }
 
-export function createProgressReporter(mode: 'progress' | 'verbose' | 'quiet'): ProgressReporter {
-  if (mode === 'verbose') {
+export function createProgressReporter(
+  mode: "progress" | "verbose" | "quiet",
+): ProgressReporter {
+  if (mode === "verbose") {
     return createVerboseReporter();
-  } else if (mode === 'quiet') {
+  } else if (mode === "quiet") {
     return createQuietReporter();
   }
   return createBarReporter();
@@ -49,7 +55,7 @@ function formatDuration(ms: number): string {
 }
 
 function shortenFilename(filePath: string, maxLength: number = 40): string {
-  const filename = filePath.split('/').pop() || filePath;
+  const filename = filePath.split("/").pop() || filePath;
   if (filename.length <= maxLength) return filename;
   const start = filename.substring(0, maxLength - 3);
   return `${start}...`;
@@ -60,13 +66,14 @@ function calculateETA(stats: ProgressStats): string {
 
   // Need at least 5% progress or 10 files before showing ETA
   if (processedFiles < Math.max(Math.floor(totalFiles * 0.05), 10)) {
-    return '~Calculating...';
+    return "~Calculating...";
   }
 
   // Calculate average rate from sliding window
-  if (processingRates.length === 0) return '~Calculating...';
+  if (processingRates.length === 0) return "~Calculating...";
 
-  const avgRate = processingRates.reduce((a, b) => a + b) / processingRates.length;
+  const avgRate =
+    processingRates.reduce((a, b) => a + b) / processingRates.length;
   const remainingFiles = totalFiles - processedFiles;
   const etaSeconds = remainingFiles / avgRate;
   const etaMs = etaSeconds * 1000; // Convert seconds to milliseconds
@@ -82,19 +89,23 @@ function createBarReporter(): ProgressReporter {
     processedFiles: 0,
     totalChunks: 0,
     totalEmbeddings: 0,
-    phase: 'discovery',
+    phase: "discovery",
     startTime: 0,
     lastUpdateTime: 0,
     processingRates: [],
   };
 
-  const multibar = new cliProgress.MultiBar({
-    clearOnComplete: false,
-    hideCursor: true,
-    format: ' [{bar}] {percentage}% | {value}/{total} files | ⏱ {elapsed} | ETA: {eta} | {filename}',
-    barCompleteChar: '\u2588',
-    barIncompleteChar: '\u2591',
-  }, cliProgress.Presets.shades_classic);
+  const multibar = new cliProgress.MultiBar(
+    {
+      clearOnComplete: false,
+      hideCursor: true,
+      format:
+        " [{bar}] {percentage}% | {value}/{total} files | ⏱ {elapsed} | ETA: {remaining} | {filename}",
+      barCompleteChar: "\u2588",
+      barIncompleteChar: "\u2591",
+    },
+    cliProgress.Presets.shades_classic,
+  );
 
   return {
     start(totalFiles: number) {
@@ -102,15 +113,15 @@ function createBarReporter(): ProgressReporter {
       stats.processedFiles = 0;
       stats.totalChunks = 0;
       stats.totalEmbeddings = 0;
-      stats.phase = 'processing';
+      stats.phase = "processing";
       stats.startTime = Date.now();
       stats.lastUpdateTime = Date.now();
       stats.processingRates = [];
 
       bar = multibar.create(totalFiles, 0, {
-        elapsed: '0s',
-        eta: '~Calculating...',
-        filename: '',
+        elapsed: "0s",
+        remaining: "~...",
+        filename: "",
       });
     },
 
@@ -136,27 +147,33 @@ function createBarReporter(): ProgressReporter {
 
       // Calculate elapsed time and ETA
       const elapsed = formatDuration(now - stats.startTime);
-      const eta = calculateETA(stats);
+      const remaining = calculateETA(stats);
       const filename = shortenFilename(filePath);
 
       bar?.update(stats.processedFiles, {
         elapsed,
-        eta,
+        remaining,
         filename,
       });
     },
 
-    updatePhase(phase: ProgressStats['phase'], message?: string) {
+    updatePhase(phase: ProgressStats["phase"], message?: string) {
       stats.phase = phase;
       // Phase changes don't update the bar, they just log
     },
 
     warnLargeFile(fileName: string, estimatedChunks: number) {
-      const shortName = fileName.split('/').pop() || fileName;
-      multibar.log(`⚠ Large file detected: ${shortName} (~${estimatedChunks.toLocaleString()} chunks, may take several minutes)\n`);
+      const shortName = fileName.split("/").pop() || fileName;
+      multibar.log(
+        `⚠ Large file detected: ${shortName} (~${estimatedChunks.toLocaleString()} chunks, may take several minutes)\n`,
+      );
     },
 
-    updateChunkProgress(fileName: string, processedChunks: number, totalChunks: number) {
+    updateChunkProgress(
+      fileName: string,
+      processedChunks: number,
+      totalChunks: number,
+    ) {
       // Don't update bar during chunk processing (keeps display stable)
     },
 
@@ -165,15 +182,17 @@ function createBarReporter(): ProgressReporter {
       if (bar) {
         bar.update(stats.totalFiles, {
           elapsed,
-          eta: '~Complete!',
-          filename: '',
+          remaining: "Done!",
+          filename: "",
         });
       }
       multibar.stop();
 
       // Print summary
       console.log(`\n✓ Processing complete`);
-      console.log(`  Files processed: ${stats.processedFiles}/${stats.totalFiles}`);
+      console.log(
+        `  Files processed: ${stats.processedFiles}/${stats.totalFiles}`,
+      );
       console.log(`  Total chunks: ${stats.totalChunks}`);
       console.log(`  Total embeddings: ${stats.totalEmbeddings}`);
       console.log(`  Duration: ${elapsed}`);
@@ -181,13 +200,18 @@ function createBarReporter(): ProgressReporter {
 
     log(message: string) {
       // In progress mode, only show important messages
-      if (message.includes('✓') || message.includes('repository') || message.includes('Delta') || message.includes('File size')) {
-        multibar.log(message + '\n');
+      if (
+        message.includes("✓") ||
+        message.includes("repository") ||
+        message.includes("Delta") ||
+        message.includes("File size")
+      ) {
+        multibar.log(message + "\n");
       }
     },
 
     error(message: string) {
-      multibar.log('ERROR: ' + message + '\n');
+      multibar.log("ERROR: " + message + "\n");
     },
   };
 }
@@ -200,34 +224,42 @@ function createVerboseReporter(): ProgressReporter {
     },
 
     updateFile(filePath: string, chunks: number) {
-      const time = new Date().toTimeString().split(' ')[0];
+      const time = new Date().toTimeString().split(" ")[0];
       console.log(`[${time}] Processed: ${filePath} (${chunks} chunks)`);
     },
 
-    updatePhase(phase: ProgressStats['phase'], message?: string) {
+    updatePhase(phase: ProgressStats["phase"], message?: string) {
       if (message) {
         console.log(message);
       }
     },
 
     warnLargeFile(fileName: string, estimatedChunks: number) {
-      const time = new Date().toTimeString().split(' ')[0];
-      const shortName = fileName.split('/').pop() || fileName;
-      console.log(`[${time}] ⚠ Large file: ${shortName} (~${estimatedChunks.toLocaleString()} chunks)`);
+      const time = new Date().toTimeString().split(" ")[0];
+      const shortName = fileName.split("/").pop() || fileName;
+      console.log(
+        `[${time}] ⚠ Large file: ${shortName} (~${estimatedChunks.toLocaleString()} chunks)`,
+      );
     },
 
-    updateChunkProgress(fileName: string, processedChunks: number, totalChunks: number) {
+    updateChunkProgress(
+      fileName: string,
+      processedChunks: number,
+      totalChunks: number,
+    ) {
       // Log every 100 chunks to avoid spam
       if (processedChunks % 100 === 0 || processedChunks === totalChunks) {
-        const time = new Date().toTimeString().split(' ')[0];
-        const shortName = fileName.split('/').pop() || fileName;
+        const time = new Date().toTimeString().split(" ")[0];
+        const shortName = fileName.split("/").pop() || fileName;
         const percentage = Math.round((processedChunks / totalChunks) * 100);
-        console.log(`[${time}] Embedding ${shortName}: ${processedChunks.toLocaleString()}/${totalChunks.toLocaleString()} (${percentage}%)`);
+        console.log(
+          `[${time}] Embedding ${shortName}: ${processedChunks.toLocaleString()}/${totalChunks.toLocaleString()} (${percentage}%)`,
+        );
       }
     },
 
     finish() {
-      console.log('✓ Processing complete');
+      console.log("✓ Processing complete");
     },
 
     log(message: string) {
@@ -235,7 +267,7 @@ function createVerboseReporter(): ProgressReporter {
     },
 
     error(message: string) {
-      console.error('ERROR:', message);
+      console.error("ERROR:", message);
     },
   };
 }
@@ -251,12 +283,12 @@ function createQuietReporter(): ProgressReporter {
     finish() {},
     log(message: string) {
       // Only show important messages
-      if (message.includes('✓') || message.includes('ERROR')) {
+      if (message.includes("✓") || message.includes("ERROR")) {
         console.log(message);
       }
     },
     error(message: string) {
-      console.error('ERROR:', message);
+      console.error("ERROR:", message);
     },
   };
 }
