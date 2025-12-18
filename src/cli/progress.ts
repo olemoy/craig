@@ -64,13 +64,13 @@ function shortenFilename(filePath: string, maxLength: number = 40): string {
 function calculateETA(stats: ProgressStats): string {
   const { totalFiles, processedFiles, startTime, processingRates } = stats;
 
-  // Need at least 20 files before showing ETA (for accurate rate calculation)
-  if (processedFiles < 20) {
-    return "~...";
+  // Need at least 5% progress or 10 files before showing ETA
+  if (processedFiles < Math.max(Math.floor(totalFiles * 0.05), 10)) {
+    return "~Calculating...";
   }
 
   // Calculate average rate from sliding window
-  if (processingRates.length === 0) return "~...";
+  if (processingRates.length === 0) return "~Calculating...";
 
   const avgRate =
     processingRates.reduce((a, b) => a + b) / processingRates.length;
