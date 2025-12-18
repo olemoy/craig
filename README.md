@@ -44,7 +44,7 @@ cp config.example.json config.json
 }
 ```
 
-**Using Ollama (faster):**
+**Using Ollama:**
 ```bash
 ollama pull all-minilm
 ```
@@ -159,6 +159,54 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 - `file_info` - File metadata with path
 - `similar` - Find semantically similar code
 
+## Ingestion Logging
+
+CRAIG automatically creates detailed logs for each ingestion session to help monitor progress and debug issues.
+
+### Log Files
+
+**Location:** `logs/<repository-name>-ingestion-<date>.log`
+
+**Example:** `logs/my-project-ingestion-2025-12-18.log`
+
+### Log Format
+
+```
+2025-12-18 15:32:10.234 | START  | /path/to/file.ts
+2025-12-18 15:32:11.156 | DONE   | /path/to/file.ts | 15 chunks | 921ms
+2025-12-18 15:32:12.245 | SKIP   | /path/to/large-file.sql | Too large: 15.2 MB
+2025-12-18 15:32:13.301 | ERROR  | /path/to/bad-file.ts | SyntaxError: Unexpected token
+```
+
+### Monitor in Real-Time
+
+**Tail the log while ingesting:**
+```bash
+# In one terminal
+bun src/cli/index.ts ingest /path/to/repo
+
+# In another terminal
+tail -f logs/<reponame>-ingestion-<date>.log
+```
+
+**Find errors:**
+```bash
+grep ERROR logs/*.log
+```
+
+**Session summaries:**
+```bash
+grep "SESSION END" logs/my-project-ingestion-2025-12-18.log
+```
+
+### Log Management
+
+- One log file per project per day
+- Multiple sessions append to same file
+- Session markers separate different runs
+- Gitignored by default (in `logs/`)
+- Clean up old logs: `find logs/ -name "*.log" -mtime +30 -delete`
+
 ## Advanced Features
 
 ### Resume Interrupted Ingestion
@@ -248,3 +296,4 @@ MIT
 - [pgvector](https://github.com/pgvector/pgvector) - Vector similarity
 - [Transformers.js](https://huggingface.co/docs/transformers.js) - ML models
 - [Ollama](https://ollama.ai/) - Local embeddings
+- [Claude Code](https://claude.com/claude-code) - AI coding assistant
