@@ -48,22 +48,29 @@ function formatDuration(ms: number): string {
   return `${seconds}s`;
 }
 
+function shortenFilename(filePath: string, maxLength: number = 40): string {
+  const filename = filePath.split('/').pop() || filePath;
+  if (filename.length <= maxLength) return filename;
+  const start = filename.substring(0, maxLength - 3);
+  return `${start}...`;
+}
+
 function calculateETA(stats: ProgressStats): string {
   const { totalFiles, processedFiles, startTime, processingRates } = stats;
 
   // Need at least 5% progress or 10 files before showing ETA
   if (processedFiles < Math.max(Math.floor(totalFiles * 0.05), 10)) {
-    return 'Calculating...';
+    return '~Calculating...';
   }
 
   // Calculate average rate from sliding window
-  if (processingRates.length === 0) return 'Calculating...';
+  if (processingRates.length === 0) return '~Calculating...';
 
   const avgRate = processingRates.reduce((a, b) => a + b) / processingRates.length;
   const remainingFiles = totalFiles - processedFiles;
   const etaMs = remainingFiles / avgRate;
 
-  return `~${formatDuration(etaMs)} left`;
+  return `~${formatDuration(etaMs)}`;
 }
 
 // Progress bar mode - fixed display with stats
@@ -83,7 +90,7 @@ function createBarReporter(): ProgressReporter {
   const multibar = new cliProgress.MultiBar({
     clearOnComplete: false,
     hideCursor: true,
-    format: ' {bar} | {percentage}% | {value}/{total} files | ⏱ {elapsed} | {eta}',
+    format: ' [{bar}] {percentage}% | {value}/{total} files | ⏱ {elapsed} | {eta} | {filename}',
     barCompleteChar: '\u2588',
     barIncompleteChar: '\u2591',
   }, cliProgress.Presets.shades_classic);
@@ -101,7 +108,8 @@ function createBarReporter(): ProgressReporter {
 
       bar = multibar.create(totalFiles, 0, {
         elapsed: '0s',
-        eta: 'Calculating...',
+        eta: '~Calculating...',
+        filename: '',
       });
     },
 
@@ -128,10 +136,12 @@ function createBarReporter(): ProgressReporter {
       // Calculate elapsed time and ETA
       const elapsed = formatDuration(now - stats.startTime);
       const eta = calculateETA(stats);
+      const filename = shortenFilename(filePath);
 
       bar?.update(stats.processedFiles, {
         elapsed,
         eta,
+        filename,
       });
     },
 
@@ -154,7 +164,8 @@ function createBarReporter(): ProgressReporter {
       if (bar) {
         bar.update(stats.totalFiles, {
           elapsed,
-          eta: 'Complete!',
+          eta: '~Complete!',
+          filename: '',
         });
       }
       multibar.stop();
