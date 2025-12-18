@@ -61,26 +61,6 @@ function shortenFilename(filePath: string, maxLength: number = 40): string {
   return `${start}...`;
 }
 
-function calculateETA(stats: ProgressStats): string {
-  const { totalFiles, processedFiles, startTime, processingRates } = stats;
-
-  // Need at least 5% progress or 10 files before showing ETA
-  if (processedFiles < Math.max(Math.floor(totalFiles * 0.05), 10)) {
-    return "~Calculating...";
-  }
-
-  // Calculate average rate from sliding window
-  if (processingRates.length === 0) return "~Calculating...";
-
-  const avgRate =
-    processingRates.reduce((a, b) => a + b) / processingRates.length;
-  const remainingFiles = totalFiles - processedFiles;
-  const etaSeconds = remainingFiles / avgRate;
-  const etaMs = etaSeconds * 1000; // Convert seconds to milliseconds
-
-  return `~${formatDuration(etaMs)}`;
-}
-
 // Progress bar mode - fixed display with stats
 function createBarReporter(): ProgressReporter {
   let bar: cliProgress.SingleBar | null = null;
@@ -102,7 +82,7 @@ function createBarReporter(): ProgressReporter {
       clearOnComplete: false,
       hideCursor: true,
       format:
-        " [{bar}] {percentage}% | {value}/{total} files | ⏱ {elapsed} | ETA: {remaining} | {filename}",
+        " [ {bar} ] {percentage}% | {value}/{total} files |  ⏱ {elapsed} | {filename}",
       barCompleteChar: "\u2588",
       barIncompleteChar: "\u2591",
     },
@@ -121,12 +101,11 @@ function createBarReporter(): ProgressReporter {
 
     lastBarUpdateTime = now;
     const elapsed = formatDuration(now - stats.startTime);
-    const remaining = calculateETA(stats);
+    //const remaining = calculateETA(stats);
     const filename = shortenFilename(stats.currentFile || "");
 
     bar.update(stats.processedFiles, {
       elapsed,
-      remaining,
       filename,
     });
   }
@@ -144,13 +123,13 @@ function createBarReporter(): ProgressReporter {
 
       bar = multibar.create(totalFiles, 0, {
         elapsed: "0s",
-        remaining: "~...",
+        remaining: "N/A",
         filename: "",
       });
 
-      // Start interval timer to update every second
+      // Start interval timer to update every second (force to bypass throttle)
       updateInterval = setInterval(() => {
-        updateBar(false);
+        updateBar(true);
       }, 1000);
     },
 
