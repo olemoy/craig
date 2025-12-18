@@ -12,6 +12,9 @@ export interface ProgressStats {
   totalEmbeddings: number;
   currentFile?: string;
   phase?: 'discovery' | 'processing' | 'cleanup' | 'complete';
+  startTime: number;
+  lastUpdateTime: number;
+  processingRates: number[];  // Sliding window for smoothed ETA
 }
 
 export interface ProgressReporter {
@@ -34,6 +37,35 @@ export function createProgressReporter(mode: 'progress' | 'verbose' | 'quiet'): 
   return createBarReporter();
 }
 
+// Helper functions for time formatting
+function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
+
+function calculateETA(stats: ProgressStats): string {
+  const { totalFiles, processedFiles, startTime, processingRates } = stats;
+
+  // Need at least 5% progress or 10 files before showing ETA
+  if (processedFiles < Math.max(Math.floor(totalFiles * 0.05), 10)) {
+    return 'Calculating...';
+  }
+
+  // Calculate average rate from sliding window
+  if (processingRates.length === 0) return 'Calculating...';
+
+  const avgRate = processingRates.reduce((a, b) => a + b) / processingRates.length;
+  const remainingFiles = totalFiles - processedFiles;
+  const etaMs = remainingFiles / avgRate;
+
+  return `~${formatDuration(etaMs)} left`;
+}
+
 // Progress bar mode - fixed display with stats
 function createBarReporter(): ProgressReporter {
   let bar: cliProgress.SingleBar | null = null;
@@ -43,12 +75,15 @@ function createBarReporter(): ProgressReporter {
     totalChunks: 0,
     totalEmbeddings: 0,
     phase: 'discovery',
+    startTime: 0,
+    lastUpdateTime: 0,
+    processingRates: [],
   };
 
   const multibar = new cliProgress.MultiBar({
     clearOnComplete: false,
     hideCursor: true,
-    format: ' {bar} | {percentage}% | {value}/{total} files | Chunks: {chunks} | {status}',
+    format: ' {bar} | {percentage}% | {value}/{total} files | ⏱ {elapsed} | {eta}',
     barCompleteChar: '\u2588',
     barIncompleteChar: '\u2591',
   }, cliProgress.Presets.shades_classic);
@@ -60,37 +95,49 @@ function createBarReporter(): ProgressReporter {
       stats.totalChunks = 0;
       stats.totalEmbeddings = 0;
       stats.phase = 'processing';
+      stats.startTime = Date.now();
+      stats.lastUpdateTime = Date.now();
+      stats.processingRates = [];
 
       bar = multibar.create(totalFiles, 0, {
-        chunks: 0,
-        status: 'Starting...',
+        elapsed: '0s',
+        eta: 'Calculating...',
       });
     },
 
     updateFile(filePath: string, chunks: number) {
+      const now = Date.now();
       stats.processedFiles++;
       stats.totalChunks += chunks;
       stats.totalEmbeddings += chunks;
       stats.currentFile = filePath;
 
-      // Get just the filename for display
-      const fileName = filePath.split('/').pop() || filePath;
-      const shortPath = fileName.length > 40 ? '...' + fileName.slice(-37) : fileName;
+      // Calculate rate for smoothed ETA
+      const timeSinceLastUpdate = now - stats.lastUpdateTime;
+      if (timeSinceLastUpdate > 0) {
+        const rate = 1000 / timeSinceLastUpdate; // files per second
+        stats.processingRates.push(rate);
+
+        // Keep sliding window of last 20 rates
+        if (stats.processingRates.length > 20) {
+          stats.processingRates.shift();
+        }
+      }
+      stats.lastUpdateTime = now;
+
+      // Calculate elapsed time and ETA
+      const elapsed = formatDuration(now - stats.startTime);
+      const eta = calculateETA(stats);
 
       bar?.update(stats.processedFiles, {
-        chunks: stats.totalChunks,
-        status: shortPath,
+        elapsed,
+        eta,
       });
     },
 
     updatePhase(phase: ProgressStats['phase'], message?: string) {
       stats.phase = phase;
-      if (message) {
-        bar?.update(stats.processedFiles, {
-          chunks: stats.totalChunks,
-          status: message,
-        });
-      }
+      // Phase changes don't update the bar, they just log
     },
 
     warnLargeFile(fileName: string, estimatedChunks: number) {
@@ -99,19 +146,15 @@ function createBarReporter(): ProgressReporter {
     },
 
     updateChunkProgress(fileName: string, processedChunks: number, totalChunks: number) {
-      const shortName = fileName.split('/').pop() || fileName;
-      const percentage = Math.round((processedChunks / totalChunks) * 100);
-      bar?.update(stats.processedFiles, {
-        chunks: stats.totalChunks + processedChunks,
-        status: `${shortName} - Embedding: ${processedChunks.toLocaleString()}/${totalChunks.toLocaleString()} (${percentage}%)`,
-      });
+      // Don't update bar during chunk processing (keeps display stable)
     },
 
     finish() {
+      const elapsed = formatDuration(Date.now() - stats.startTime);
       if (bar) {
         bar.update(stats.totalFiles, {
-          chunks: stats.totalChunks,
-          status: 'Complete!',
+          elapsed,
+          eta: 'Complete!',
         });
       }
       multibar.stop();
@@ -121,6 +164,7 @@ function createBarReporter(): ProgressReporter {
       console.log(`  Files processed: ${stats.processedFiles}/${stats.totalFiles}`);
       console.log(`  Total chunks: ${stats.totalChunks}`);
       console.log(`  Total embeddings: ${stats.totalEmbeddings}`);
+      console.log(`  Duration: ${elapsed}`);
     },
 
     log(message: string) {
