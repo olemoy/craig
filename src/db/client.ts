@@ -16,6 +16,7 @@ import {
 } from './types.js';
 import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
+import { resolveProjectPath } from '../utils/paths.js';
 
 /**
  * Singleton database client instance
@@ -49,7 +50,7 @@ export async function initializeClient(
 ): Promise<PGlite> {
   try {
     const {
-      dataDir = process.env.CRAIG_DB_PATH ?? './data/craig.db',
+      dataDir = process.env.CRAIG_DB_PATH ?? resolveProjectPath('data', 'craig.db'),
       autoMigrate = true,
     } = options;
 

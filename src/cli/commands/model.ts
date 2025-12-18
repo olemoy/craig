@@ -8,7 +8,7 @@ export async function modelCmd(args: string[]) {
   }
   if (action === 'fetch') {
     try {
-      console.log('Fetching model into ./models...');
+      console.log('Fetching model into project models directory...');
       await getPipeline();
       console.log('Model fetch completed.');
     } catch (e) {

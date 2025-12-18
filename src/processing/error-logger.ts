@@ -4,7 +4,7 @@
  */
 
 import fs from 'fs';
-import path from 'path';
+import { resolveProjectPath } from '../utils/paths.js';
 
 export interface ProcessingError {
   timestamp: Date;
@@ -19,7 +19,7 @@ export interface ProcessingError {
  * File is created in the project root as processing-error.log
  */
 export async function logProcessingError(error: ProcessingError): Promise<void> {
-  const logFilePath = path.resolve(process.cwd(), 'processing-error.log');
+  const logFilePath = resolveProjectPath('processing-error.log');
 
   const timestamp = error.timestamp.toISOString();
   const logEntry = {
@@ -61,7 +61,7 @@ export function formatFileSize(bytes: number): string {
  * Create a summary report of all errors from the log file
  */
 export async function generateErrorSummary(): Promise<string> {
-  const logFilePath = path.resolve(process.cwd(), 'processing-error.log');
+  const logFilePath = resolveProjectPath('processing-error.log');
 
   try {
     const content = await fs.promises.readFile(logFilePath, 'utf-8');
@@ -96,7 +96,7 @@ export async function generateErrorSummary(): Promise<string> {
  * Clear the error log file
  */
 export async function clearErrorLog(): Promise<void> {
-  const logFilePath = path.resolve(process.cwd(), 'processing-error.log');
+  const logFilePath = resolveProjectPath('processing-error.log');
 
   try {
     await fs.promises.unlink(logFilePath);

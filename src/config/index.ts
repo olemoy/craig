@@ -4,7 +4,7 @@
  */
 
 import fs from 'fs';
-import path from 'path';
+import { resolveProjectPath } from '../utils/paths.js';
 
 export interface TransformersConfig {
   model: string;
@@ -52,7 +52,7 @@ export function loadConfig(): Config {
     return cachedConfig;
   }
 
-  const configPath = path.resolve(process.cwd(), 'config.json');
+  const configPath = resolveProjectPath('config.json');
 
   if (!fs.existsSync(configPath)) {
     throw new Error(

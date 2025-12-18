@@ -1,4 +1,5 @@
 import { getModelConfig } from './config';
+import { resolveProjectPath } from '../utils/paths.js';
 
 let pipelineInstance: any = null;
 let initializing: Promise<any> | null = null;
@@ -36,9 +37,9 @@ export async function getPipeline() {
     }
 
     try {
-      // Prefer local model under ./models/{modelId} if present
+      // Prefer local model under models/{modelId} if present
       const modelConfig = getModelConfig();
-      const localModelDir = `./models/${modelConfig.modelId.replace(/\//g, '_')}`;
+      const localModelDir = resolveProjectPath('models', modelConfig.modelId.replace(/\//g, '_'));
       const fs = await import('fs');
       if (fs.existsSync(localModelDir)) {
         console.error(`Using local model at ${localModelDir}`);
@@ -48,13 +49,14 @@ export async function getPipeline() {
         return pipelineInstance;
       }
 
-      // Otherwise set TRANSFORMERS_CACHE to ./models to cache downloads
-      console.error(`Local model not found. Downloading ${modelConfig.modelId} into ./models (this may take a while)`);
-      process.env.TRANSFORMERS_CACHE = process.env.TRANSFORMERS_CACHE ?? './models';
+      // Otherwise set TRANSFORMERS_CACHE to models directory to cache downloads
+      const modelsDir = resolveProjectPath('models');
+      console.error(`Local model not found. Downloading ${modelConfig.modelId} into ${modelsDir} (this may take a while)`);
+      process.env.TRANSFORMERS_CACHE = process.env.TRANSFORMERS_CACHE ?? modelsDir;
       const transformers = await import('@huggingface/transformers');
       pipelineInstance = await transformers.pipeline('feature-extraction', modelConfig.modelId);
 
-    // After pipeline is ready, try to detect where transformers cached the model and copy it into ./models for reproducibility
+    // After pipeline is ready, try to detect where transformers cached the model and copy it to project models dir for reproducibility
     try {
       const os = await import('os');
       const path = await import('path');
@@ -74,7 +76,7 @@ export async function getPipeline() {
       }
     } catch (e) {
       // Non-fatal
-      console.error('Warning: Could not copy cached model into ./models:', e);
+      console.error('Warning: Could not copy cached model to project models directory:', e);
     }
 
       initializing = null;
