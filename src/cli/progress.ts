@@ -90,7 +90,7 @@ function createBarReporter(): ProgressReporter {
   const multibar = new cliProgress.MultiBar({
     clearOnComplete: false,
     hideCursor: true,
-    format: ' [{bar}] {percentage}% | {value}/{total} files | ⏱ {elapsed} | {eta} | {filename}',
+    format: ' [{bar}] {percentage}% | {value}/{total} files | ⏱ {elapsed} | ETA: {eta} | {filename}',
     barCompleteChar: '\u2588',
     barIncompleteChar: '\u2591',
   }, cliProgress.Presets.shades_classic);
