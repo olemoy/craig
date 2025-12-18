@@ -68,13 +68,13 @@ CREATE TABLE chunks (
 -- Stores vector embeddings for chunks
 --
 -- NOTE: Only chunks (from text/code files) have embeddings.
--- Vector dimension: 768 (configured in config.json)
+-- Vector dimension: 384 (must match config.json embedding provider dimensions)
 -- Unique constraint ensures one embedding per chunk
 
 CREATE TABLE embeddings (
   id SERIAL PRIMARY KEY,
   chunk_id INTEGER NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
-  embedding vector(768),      -- 768-dimensional vector
+  embedding vector(384),      -- 384-dimensional vector (must match config.json)
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(chunk_id)
 );

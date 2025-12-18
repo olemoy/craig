@@ -12,16 +12,21 @@ import { createInvalidParamsError, createNotFoundError } from '../errors.js';
 export interface ListFilesArgs {
   repository: string;
   path?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface ListFilesResult {
   repository: string;
-  fileCount: number;
+  total: number;
+  count: number;
   files: string[];
+  more: boolean;
+  next?: number | undefined;
 }
 
 export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
-  const { repository, path } = args;
+  const { repository, path, limit, offset = 0 } = args;
 
   if (!repository || repository.trim().length === 0) {
     throw createInvalidParamsError('repository parameter is required');
@@ -41,40 +46,67 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
     throw createNotFoundError(`Repository '${repository}' not found`);
   }
 
-  // Get all files, optionally filtered by path
+  // Get files, optionally filtered by path, with pagination
   const client = await getClient();
   const repoPath = repo.path.endsWith('/') ? repo.path : repo.path + '/';
 
-  let sql = `SELECT file_path FROM files WHERE repository_id = $1`;
+  // Build base query for counting and fetching
+  let baseWhere = `WHERE repository_id = $1`;
   const params: any[] = [repo.id];
 
   // Filter by path if provided
   if (path) {
     const filterPath = path.startsWith('/') ? path.slice(1) : path;
     const fullFilterPath = repoPath + filterPath;
-    sql += ` AND file_path LIKE $2`;
+    baseWhere += ` AND file_path LIKE $2`;
     params.push(fullFilterPath + '%');
   }
 
-  sql += ` ORDER BY file_path`;
+  // Get total count
+  const countResult = await client.query(
+    `SELECT COUNT(*) as count FROM files ${baseWhere}`,
+    params
+  );
+  const total = parseInt(countResult.rows[0].count, 10);
 
-  const result = await client.query(sql, params);
+  // Build paginated query
+  let sql = `SELECT file_path FROM files ${baseWhere} ORDER BY file_path`;
+  const queryParams = [...params];
+
+  if (limit !== undefined) {
+    sql += ` LIMIT $${queryParams.length + 1}`;
+    queryParams.push(limit);
+  }
+
+  if (offset > 0) {
+    sql += ` OFFSET $${queryParams.length + 1}`;
+    queryParams.push(offset);
+  }
+
+  const result = await client.query(sql, queryParams);
 
   // Convert absolute paths to relative paths
   const files: string[] = result.rows.map((row: any) =>
     row.file_path.replace(repoPath, '')
   );
 
+  const count = files.length;
+  const more = limit !== undefined && (offset + count) < total;
+  const next = more ? offset + count : undefined;
+
   return {
     repository: repo.name,
-    fileCount: files.length,
+    total,
+    count,
     files,
+    more,
+    next,
   };
 }
 
 export const listFilesTool = {
   name: 'files',
-  description: 'List files in repository as relative paths',
+  description: 'List files in repository as relative paths. Supports pagination for large result sets.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -85,6 +117,14 @@ export const listFilesTool = {
       path: {
         type: 'string',
         description: 'Optional: filter to files under this path (e.g., "src/", "docs/")',
+      },
+      limit: {
+        type: 'number',
+        description: 'Optional: maximum number of files to return (for pagination)',
+      },
+      offset: {
+        type: 'number',
+        description: 'Optional: number of files to skip (for pagination, default: 0)',
       },
     },
     required: ['repository'],

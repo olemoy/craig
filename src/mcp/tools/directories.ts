@@ -13,15 +13,21 @@ export interface GetDirectoriesArgs {
   repository: string;
   path?: string;
   depth?: number;
+  limit?: number;
+  offset?: number;
 }
 
 export interface GetDirectoriesResult {
   repository: string;
+  total: number;
+  count: number;
   directories: string[];
+  more: boolean;
+  next?: number | undefined;
 }
 
 export async function getDirectories(args: GetDirectoriesArgs): Promise<GetDirectoriesResult> {
-  const { repository, path, depth } = args;
+  const { repository, path, depth, limit, offset = 0 } = args;
 
   if (!repository || repository.trim().length === 0) {
     throw createInvalidParamsError('repository parameter is required');
@@ -93,17 +99,34 @@ export async function getDirectories(args: GetDirectoriesArgs): Promise<GetDirec
   }
 
   // Convert to sorted array
-  const directories = Array.from(dirSet).sort();
+  const allDirectories = Array.from(dirSet).sort();
+  const total = allDirectories.length;
+
+  // Apply pagination
+  let directories: string[];
+  if (limit !== undefined) {
+    directories = allDirectories.slice(offset, offset + limit);
+  } else {
+    directories = allDirectories.slice(offset);
+  }
+
+  const count = directories.length;
+  const more = limit !== undefined && (offset + count) < total;
+  const next = more ? offset + count : undefined;
 
   return {
     repository: repo.name,
+    total,
+    count,
     directories,
+    more,
+    next,
   };
 }
 
 export const getDirectoriesTool = {
   name: 'directories',
-  description: 'Get directory structure (no files)',
+  description: 'Get directory structure (no files). Supports pagination for large result sets.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -118,6 +141,14 @@ export const getDirectoriesTool = {
       depth: {
         type: 'number',
         description: 'Optional: depth from root (0=root only, 1=one level down)',
+      },
+      limit: {
+        type: 'number',
+        description: 'Optional: maximum number of directories to return (for pagination)',
+      },
+      offset: {
+        type: 'number',
+        description: 'Optional: number of directories to skip (for pagination, default: 0)',
       },
     },
     required: ['repository'],
