@@ -64,13 +64,13 @@ function shortenFilename(filePath: string, maxLength: number = 40): string {
 function calculateETA(stats: ProgressStats): string {
   const { totalFiles, processedFiles, startTime, processingRates } = stats;
 
-  // Need at least 20 files before showing ETA (for accurate rate calculation)
-  if (processedFiles < 20) {
-    return "~...";
+  // Need at least 5% progress or 10 files before showing ETA
+  if (processedFiles < Math.max(Math.floor(totalFiles * 0.05), 10)) {
+    return "~Calculating...";
   }
 
   // Calculate average rate from sliding window
-  if (processingRates.length === 0) return "~...";
+  if (processingRates.length === 0) return "~Calculating...";
 
   const avgRate =
     processingRates.reduce((a, b) => a + b) / processingRates.length;
@@ -84,8 +84,6 @@ function calculateETA(stats: ProgressStats): string {
 // Progress bar mode - fixed display with stats
 function createBarReporter(): ProgressReporter {
   let bar: cliProgress.SingleBar | null = null;
-  let updateInterval: NodeJS.Timeout | null = null;
-  let lastBarUpdateTime = 0;
   let stats: ProgressStats = {
     totalFiles: 0,
     processedFiles: 0,
@@ -109,28 +107,6 @@ function createBarReporter(): ProgressReporter {
     cliProgress.Presets.shades_classic,
   );
 
-  // Shared function to update the progress bar
-  function updateBar(force = false) {
-    if (!bar) return;
-
-    const now = Date.now();
-    // Throttle: Don't update more than once per 100ms unless forced
-    if (!force && now - lastBarUpdateTime < 100) {
-      return;
-    }
-
-    lastBarUpdateTime = now;
-    const elapsed = formatDuration(now - stats.startTime);
-    const remaining = calculateETA(stats);
-    const filename = shortenFilename(stats.currentFile || "");
-
-    bar.update(stats.processedFiles, {
-      elapsed,
-      remaining,
-      filename,
-    });
-  }
-
   return {
     start(totalFiles: number) {
       stats.totalFiles = totalFiles;
@@ -147,11 +123,6 @@ function createBarReporter(): ProgressReporter {
         remaining: "~...",
         filename: "",
       });
-
-      // Start interval timer to update every second
-      updateInterval = setInterval(() => {
-        updateBar(false);
-      }, 1000);
     },
 
     updateFile(filePath: string, chunks: number) {
@@ -174,8 +145,16 @@ function createBarReporter(): ProgressReporter {
       }
       stats.lastUpdateTime = now;
 
-      // Update bar immediately on file complete (respects 100ms throttle)
-      updateBar(false);
+      // Calculate elapsed time and ETA
+      const elapsed = formatDuration(now - stats.startTime);
+      const remaining = calculateETA(stats);
+      const filename = shortenFilename(filePath);
+
+      bar?.update(stats.processedFiles, {
+        elapsed,
+        remaining,
+        filename,
+      });
     },
 
     updatePhase(phase: ProgressStats["phase"], message?: string) {
@@ -199,13 +178,6 @@ function createBarReporter(): ProgressReporter {
     },
 
     finish() {
-      // Clear the interval timer
-      if (updateInterval) {
-        clearInterval(updateInterval);
-        updateInterval = null;
-      }
-
-      // Final update to show completion
       const elapsed = formatDuration(Date.now() - stats.startTime);
       if (bar) {
         bar.update(stats.totalFiles, {
@@ -214,7 +186,6 @@ function createBarReporter(): ProgressReporter {
           filename: "",
         });
       }
-
       multibar.stop();
 
       // Print summary
