@@ -68,7 +68,8 @@ function calculateETA(stats: ProgressStats): string {
 
   const avgRate = processingRates.reduce((a, b) => a + b) / processingRates.length;
   const remainingFiles = totalFiles - processedFiles;
-  const etaMs = remainingFiles / avgRate;
+  const etaSeconds = remainingFiles / avgRate;
+  const etaMs = etaSeconds * 1000; // Convert seconds to milliseconds
 
   return `~${formatDuration(etaMs)}`;
 }
