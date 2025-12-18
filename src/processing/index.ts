@@ -160,6 +160,8 @@ export async function processDirectory(
 
   const files = filesToProcess;
   let skippedFiles = 0;
+  let skippedDueToSize = 0;
+  let skippedDueToError = 0;
 
   // Start progress tracking
   progress?.start(files.length);
@@ -191,6 +193,7 @@ export async function processDirectory(
         }
 
         skippedFiles++;
+        skippedDueToSize++;
         progress?.updateFile(f, 0);
         continue; // Skip this file and continue with the next one
       }
@@ -373,6 +376,7 @@ export async function processDirectory(
 
       // Continue processing other files
       skippedFiles++;
+      skippedDueToError++;
       progress?.updateFile(f, 0);
     }
   }
@@ -395,16 +399,30 @@ export async function processDirectory(
     console.log(`\n✓ Ingestion complete for repository: ${repo.name}`);
     console.log(`  Total files in repository: ${discoveredFiles.length}`);
     if (isDeltaIngestion) {
-      console.log(`  Files processed: ${filesToProcess.length}`);
+      console.log(`  Files processed: ${filesToProcess.length - skippedFiles}`);
+    } else {
+      console.log(`  Files processed: ${files.length - skippedFiles}`);
     }
     if (skippedFiles > 0) {
       console.log(`  Files skipped: ${skippedFiles}`);
-      console.log(`\n  ⚠️  To retry failed files, run:`);
-      console.log(`     craig ingest ${root} --resume`);
+      if (skippedDueToSize > 0) {
+        console.log(`    - Too large: ${skippedDueToSize}`);
+      }
+      if (skippedDueToError > 0) {
+        console.log(`    - Errors: ${skippedDueToError}`);
+        console.log(`\n  ⚠️  To retry failed files, run:`);
+        console.log(`     craig ingest ${root} --resume`);
+      }
     }
   } else if (skippedFiles > 0) {
     // Show skipped files count in progress mode too
-    const skipMsg = `\n✓ Processing complete. Files skipped: ${skippedFiles}`;
+    let skipMsg = `\n✓ Processing complete. Files skipped: ${skippedFiles}`;
+    if (skippedDueToSize > 0) {
+      skipMsg += ` (${skippedDueToSize} too large)`;
+    }
+    if (skippedDueToError > 0) {
+      skipMsg += ` (${skippedDueToError} errors)`;
+    }
     progress.log(skipMsg);
   }
 

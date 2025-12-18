@@ -158,9 +158,11 @@ export async function insertChunks(chunks: ChunkInsert[]): Promise<Chunk[]> {
       throw error;
     }
 
+    // Include original error message for debugging
+    const errorMsg = error instanceof Error ? error.message : String(error);
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
-      `Failed to batch insert ${chunks.length} chunks`,
+      `Failed to batch insert ${chunks.length} chunks: ${errorMsg}`,
       error
     );
   }

@@ -20,6 +20,7 @@ export interface DeltaStats {
 /**
  * Analyze which files need processing for resume mode
  * In resume mode, skip files that already have embeddings (fully processed)
+ * Also skips binary files since they don't need embeddings
  */
 export async function analyzeResume(
   repo: Repository,
@@ -30,14 +31,23 @@ export async function analyzeResume(
 }> {
   const client = await getClient();
 
-  // Get all files that have embeddings (fully processed)
-  // A file is considered processed if it has at least one chunk with an embedding
+  // Get all files that are fully processed:
+  // 1. Files with embeddings (text/code files that have been chunked and embedded)
+  // 2. Binary files (they don't need embeddings, just a file record)
   const result = await client.query(
     `SELECT DISTINCT f.file_path
      FROM files f
-     INNER JOIN chunks c ON c.file_id = f.id
-     INNER JOIN embeddings e ON e.chunk_id = c.id
-     WHERE f.repository_id = $1`,
+     WHERE f.repository_id = $1
+     AND (
+       -- Has embeddings (text/code files)
+       EXISTS (
+         SELECT 1 FROM chunks c
+         INNER JOIN embeddings e ON e.chunk_id = c.id
+         WHERE c.file_id = f.id
+       )
+       -- OR is a binary file (doesn't need embeddings)
+       OR f.file_type = 'binary'
+     )`,
     [repo.id]
   );
 
