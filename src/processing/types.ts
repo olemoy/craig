@@ -24,4 +24,5 @@ export interface ChunkRecord {
   symbolName?: string | null; // Name of function/class/interface extracted from chunk
   symbolType?: string | null; // Type: 'function', 'class', 'interface', 'type', etc.
   chunkType: string; // Semantic type: 'function', 'class', 'interface', 'type', 'variable', 'code', 'section'
+  isDefinition?: boolean | null; // True if chunk contains a symbol definition
 }

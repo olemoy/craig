@@ -37,6 +37,27 @@ const CODE_PATTERNS: Record<string, RegExp[]> = {
     /^interface\s+\w+/,
     /^object\s+\w+/,
   ],
+  go: [
+    /^func\s+(\(\w+\s+\*?\w+\)\s+)?\w+/,
+    /^type\s+\w+\s+(struct|interface)/,
+  ],
+  rust: [
+    /^(pub\s+)?(async\s+)?fn\s+\w+/,
+    /^(pub\s+)?struct\s+\w+/,
+    /^(pub\s+)?enum\s+\w+/,
+    /^(pub\s+)?trait\s+\w+/,
+    /^impl\s+/,
+  ],
+  c: [
+    /^\w+\s+\w+\s*\([^)]*\)\s*\{?$/,
+    /^(typedef\s+)?(struct|enum|union)\s+\w*/,
+  ],
+  cpp: [
+    /^\w+\s+\w+::\w+\s*\(/,
+    /^(class|struct)\s+\w+/,
+    /^namespace\s+\w+/,
+    /^template\s*</,
+  ],
 };
 
 // Symbol extraction patterns - capture symbol names
@@ -68,6 +89,27 @@ const SYMBOL_PATTERNS: Record<string, { pattern: RegExp; type: string }[]> = {
     { pattern: /^(?:data\s+)?class\s+(\w+)/, type: 'class' },
     { pattern: /^interface\s+(\w+)/, type: 'interface' },
     { pattern: /^object\s+(\w+)/, type: 'object' },
+  ],
+  go: [
+    { pattern: /^func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)/, type: 'function' },
+    { pattern: /^type\s+(\w+)\s+struct/, type: 'struct' },
+    { pattern: /^type\s+(\w+)\s+interface/, type: 'interface' },
+  ],
+  rust: [
+    { pattern: /^(?:pub\s+)?(?:async\s+)?fn\s+(\w+)/, type: 'function' },
+    { pattern: /^(?:pub\s+)?struct\s+(\w+)/, type: 'struct' },
+    { pattern: /^(?:pub\s+)?enum\s+(\w+)/, type: 'enum' },
+    { pattern: /^(?:pub\s+)?trait\s+(\w+)/, type: 'trait' },
+    { pattern: /^impl(?:\s*<[^>]+>)?\s+(\w+)/, type: 'impl' },
+  ],
+  c: [
+    { pattern: /^(?:typedef\s+)?struct\s+(\w+)/, type: 'struct' },
+    { pattern: /^(?:typedef\s+)?enum\s+(\w+)/, type: 'enum' },
+  ],
+  cpp: [
+    { pattern: /^class\s+(\w+)/, type: 'class' },
+    { pattern: /^struct\s+(\w+)/, type: 'struct' },
+    { pattern: /^namespace\s+(\w+)/, type: 'namespace' },
   ],
 };
 
@@ -116,6 +158,7 @@ interface CodeChunk {
   endLine: number;
   symbolInfo: SymbolInfo;
   chunkType: string;
+  isDefinition: boolean;
 }
 
 function chunkCode(text: string, language: string | null, maxTokens: number): CodeChunk[] {
@@ -152,6 +195,8 @@ function chunkCode(text: string, language: string | null, maxTokens: number): Co
     const chunkType = detectChunkType(firstLine, language);
 
     const tokens = estimateTokens(content);
+    const hasSymbol = !!(symbolInfo.symbolName || symbolInfo.symbolType);
+
     if (tokens <= maxTokens) {
       chunks.push({
         content,
@@ -159,10 +204,11 @@ function chunkCode(text: string, language: string | null, maxTokens: number): Co
         endLine: end,
         symbolInfo,
         chunkType,
+        isDefinition: hasSymbol,
       });
     } else {
-      // Split large chunks
-      chunks.push(...splitLargeChunk(chunkLines, start, maxTokens, language, symbolInfo));
+      // Split large chunks - only first sub-chunk is a definition
+      chunks.push(...splitLargeChunk(chunkLines, start, maxTokens, language, symbolInfo, hasSymbol));
     }
   }
 
@@ -202,6 +248,8 @@ function chunkMarkdown(text: string, maxTokens: number): CodeChunk[] {
       : {};
 
     const tokens = estimateTokens(content);
+    const hasSymbol = !!(symbolInfo.symbolName || symbolInfo.symbolType);
+
     if (tokens <= maxTokens) {
       chunks.push({
         content,
@@ -209,12 +257,14 @@ function chunkMarkdown(text: string, maxTokens: number): CodeChunk[] {
         endLine: section.end,
         symbolInfo,
         chunkType: 'section',
+        isDefinition: hasSymbol,
       });
     } else {
-      // Split on paragraphs
+      // Split on paragraphs - only first chunk is a definition
       const paragraphs = content.split(/\n\n+/);
       let current = '';
       let lineStart = section.start + 1;
+      let isFirst = true;
       for (const para of paragraphs) {
         const test = current + (current ? '\n\n' : '') + para;
         if (estimateTokens(test) > maxTokens && current) {
@@ -225,7 +275,9 @@ function chunkMarkdown(text: string, maxTokens: number): CodeChunk[] {
             endLine: lineStart + lineCount - 1,
             symbolInfo,
             chunkType: 'section',
+            isDefinition: isFirst && hasSymbol,
           });
+          isFirst = false;
           lineStart += lineCount;
           current = para;
         } else {
@@ -239,6 +291,7 @@ function chunkMarkdown(text: string, maxTokens: number): CodeChunk[] {
           endLine: section.end,
           symbolInfo,
           chunkType: 'section',
+          isDefinition: isFirst && hasSymbol,
         });
       }
     }
@@ -252,11 +305,13 @@ function splitLargeChunk(
   baseLineNumber: number,
   maxTokens: number,
   language: string | null,
-  symbolInfo?: SymbolInfo
+  symbolInfo?: SymbolInfo,
+  hasDefinition: boolean = false
 ): CodeChunk[] {
   const chunks: CodeChunk[] = [];
   let current: string[] = [];
   let currentStartLine = baseLineNumber;
+  let isFirst = true;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
@@ -272,7 +327,9 @@ function splitLargeChunk(
           endLine: currentStartLine + current.length,
           symbolInfo: symbolInfo ?? {},
           chunkType: 'code',
+          isDefinition: isFirst && hasDefinition,
         });
+        isFirst = false;
         currentStartLine = baseLineNumber + i;
         current = [line];
       } else {
@@ -282,7 +339,9 @@ function splitLargeChunk(
           endLine: currentStartLine + 1,
           symbolInfo: symbolInfo ?? {},
           chunkType: 'code',
+          isDefinition: isFirst && hasDefinition,
         });
+        isFirst = false;
         currentStartLine = baseLineNumber + i + 1;
         current = [];
       }
@@ -296,6 +355,7 @@ function splitLargeChunk(
       endLine: baseLineNumber + lines.length,
       symbolInfo: symbolInfo ?? {},
       chunkType: 'code',
+      isDefinition: isFirst && hasDefinition,
     });
   }
 
@@ -304,7 +364,7 @@ function splitLargeChunk(
 
 function chunkByLines(text: string, maxTokens: number): CodeChunk[] {
   const lines = text.split('\n');
-  return splitLargeChunk(lines, 0, maxTokens, null);
+  return splitLargeChunk(lines, 0, maxTokens, null, {}, false);
 }
 
 export function chunkText(
@@ -330,6 +390,7 @@ export function chunkText(
         endLine: lines.length,
         symbolInfo: {},
         chunkType: 'code',
+        isDefinition: false,
       }];
     } else {
       codeChunks = chunkByLines(text, maxTokens);
@@ -389,6 +450,7 @@ export function chunkText(
       symbolName: codeChunk.symbolInfo.symbolName ?? null,
       symbolType: codeChunk.symbolInfo.symbolType ?? null,
       chunkType: codeChunk.chunkType,
+      isDefinition: codeChunk.isDefinition ? true : null,
     });
   }
 
