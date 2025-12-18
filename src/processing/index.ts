@@ -177,11 +177,35 @@ export async function processDirectory(
       // Check if file exists in database and clean up failed attempts
       let existingFile = await getFileByPath(repo.id, f);
 
-      // If file exists but has no chunks (failed previous attempt), delete it for clean retry
+      // If file exists but processing failed, delete it for clean retry
       if (existingFile && meta.fileType !== 'binary') {
         const { getChunkCount } = await import('../db/chunks.js');
+        const { getClient } = await import('../db/client.js');
         const chunkCount = await getChunkCount(existingFile.id);
+
+        // Check if embeddings exist for the chunks
+        let needsCleanup = false;
         if (chunkCount === 0) {
+          // No chunks at all - failed during chunking
+          needsCleanup = true;
+        } else {
+          // Has chunks - check if embeddings exist
+          const dbClient = await getClient();
+          const embeddingResult = await dbClient.query(
+            `SELECT COUNT(*) as count
+             FROM embeddings e
+             INNER JOIN chunks c ON c.id = e.chunk_id
+             WHERE c.file_id = $1`,
+            [existingFile.id]
+          );
+          const embeddingCount = parseInt((embeddingResult.rows[0] as any).count, 10);
+          if (embeddingCount === 0) {
+            // Has chunks but no embeddings - failed during embedding
+            needsCleanup = true;
+          }
+        }
+
+        if (needsCleanup) {
           log(`[${fmtTime(new Date())}] Cleaning up failed file for retry: ${f}`);
           await deleteFileAndChunks(existingFile.id);
           existingFile = null; // Treat as new file for re-insertion
