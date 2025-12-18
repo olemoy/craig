@@ -184,6 +184,8 @@ Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_deskt
 }
 ```
 
+**Note:** The MCP server can be launched from any directory. All paths (config, database, models) are automatically resolved relative to the project root, ensuring data stays in the correct location regardless of where the server is started.
+
 **Available MCP Tools:**
 - `query` - Semantic code search using natural language
 - `repos` - List indexed repositories (returns id, name, fileCount)
@@ -226,11 +228,15 @@ craig/
 │   ├── embeddings/       # Embedding generation (Transformers.js, Ollama)
 │   ├── processing/       # File discovery, chunking, ingestion
 │   ├── mcp/              # MCP server and tools
+│   ├── utils/            # Path utilities and helpers
 │   └── config/           # Configuration management
 ├── docs/                 # Documentation
-├── config.json           # Your configuration
-└── data/                 # Database files (gitignored)
+├── config.json           # Your configuration (always in project root)
+├── data/                 # Database files (always in project root, gitignored)
+└── models/               # Downloaded embedding models (always in project root, gitignored)
 ```
+
+All data files (database, models, config) are stored in the project root regardless of where commands are executed from.
 
 ## Configuration
 
