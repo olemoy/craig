@@ -21,30 +21,37 @@ import {
   isValidVectorDimension,
 } from './types.js';
 import { getEmbeddingProvider } from '../config/index.js';
+import {
+  EmbeddingRow,
+  SimilarityResultRow,
+  parseVector,
+  parseDate,
+  parseNumber,
+} from './row-types.js';
 
 /**
  * Map database row to Embedding type
  */
-function mapToEmbedding(row: any): Embedding {
+function mapToEmbedding(row: EmbeddingRow): Embedding {
   return {
     id: row.id as EmbeddingId,
     chunk_id: row.chunk_id as ChunkId,
-    embedding: JSON.parse(row.embedding),
-    created_at: new Date(row.created_at),
+    embedding: parseVector(row.embedding),
+    created_at: parseDate(row.created_at),
   };
 }
 
 /**
  * Map database row to SimilarityResult type
  */
-function mapToSimilarityResult(row: any): SimilarityResult {
+function mapToSimilarityResult(row: SimilarityResultRow): SimilarityResult {
   return {
     chunk_id: row.chunk_id as ChunkId,
     file_id: row.file_id as FileId,
     repository_id: row.repository_id as RepositoryId,
     file_path: row.file_path,
     content: row.content,
-    similarity: parseFloat(String(row.similarity)),
+    similarity: parseNumber(row.similarity),
   };
 }
 
@@ -95,7 +102,7 @@ export async function insertEmbedding(
       );
     }
 
-    return mapToEmbedding(result.rows[0]);
+    return mapToEmbedding(result.rows[0] as EmbeddingRow);
   } catch (error) {
     // Check for unique constraint violation
     if (error instanceof Error && error.message.includes('unique')) {
@@ -182,7 +189,7 @@ export async function insertEmbeddings(
       values
     );
 
-    return result.rows.map(mapToEmbedding);
+    return result.rows.map(row => mapToEmbedding(row as EmbeddingRow));
   } catch (error) {
     if (error instanceof DatabaseError) {
       throw error;
@@ -218,7 +225,7 @@ export async function getEmbedding(
       return null;
     }
 
-    return mapToEmbedding(result.rows[0]);
+    return mapToEmbedding(result.rows[0] as EmbeddingRow);
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
@@ -250,7 +257,7 @@ export async function getEmbeddingByChunk(
       return null;
     }
 
-    return mapToEmbedding(result.rows[0]);
+    return mapToEmbedding(result.rows[0] as EmbeddingRow);
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
@@ -315,10 +322,10 @@ export async function searchSimilarEmbeddings(
          LIMIT $1`,
         [limit]
       );
-      return fallback.rows.map(mapToSimilarityResult);
+      return fallback.rows.map(row => mapToSimilarityResult(row as SimilarityResultRow));
     }
 
-    return result.rows.map(mapToSimilarityResult);
+    return result.rows.map(row => mapToSimilarityResult(row as SimilarityResultRow));
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
@@ -380,10 +387,10 @@ export async function searchSimilarEmbeddingsInRepository(
          LIMIT $2`,
         [repositoryId, limit]
       );
-      return fallback.rows.map(mapToSimilarityResult);
+      return fallback.rows.map(row => mapToSimilarityResult(row as SimilarityResultRow));
     }
 
-    return result.rows.map(mapToSimilarityResult);
+    return result.rows.map(row => mapToSimilarityResult(row as SimilarityResultRow));
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,

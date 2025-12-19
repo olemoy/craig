@@ -14,18 +14,19 @@ import {
   DatabaseError,
   DatabaseErrorCode,
 } from './types.js';
+import { RepositoryRow, parseJSON, parseDate } from './row-types.js';
 
 /**
  * Map database row to Repository type
  */
-function mapToRepository(row: any): Repository {
+function mapToRepository(row: RepositoryRow): Repository {
   return {
     id: row.id as RepositoryId,
     name: row.name,
     path: row.path,
     commit_sha: row.commit_sha,
-    ingested_at: new Date(row.ingested_at),
-    metadata: row.metadata,
+    ingested_at: parseDate(row.ingested_at),
+    metadata: parseJSON(row.metadata),
   };
 }
 
@@ -73,7 +74,7 @@ export async function insertRepository(
       );
     }
 
-    return mapToRepository(result.rows[0]);
+    return mapToRepository(result.rows[0] as RepositoryRow);
   } catch (error) {
     // Check for unique constraint violation
     if (error instanceof Error && error.message.includes('unique')) {
@@ -118,7 +119,7 @@ export async function getRepository(
       return null;
     }
 
-    return mapToRepository(result.rows[0]);
+    return mapToRepository(result.rows[0] as RepositoryRow);
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
@@ -150,7 +151,7 @@ export async function getRepositoryByPath(
       return null;
     }
 
-    return mapToRepository(result.rows[0]);
+    return mapToRepository(result.rows[0] as RepositoryRow);
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
@@ -182,7 +183,7 @@ export async function getRepositoryByName(
       return null;
     }
 
-    return mapToRepository(result.rows[0]);
+    return mapToRepository(result.rows[0] as RepositoryRow);
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
@@ -206,7 +207,7 @@ export async function listRepositories(): Promise<Repository[]> {
       'SELECT * FROM repositories ORDER BY ingested_at DESC'
     );
 
-    return result.rows.map(mapToRepository);
+    return result.rows.map(row => mapToRepository(row as RepositoryRow));
   } catch (error) {
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
@@ -284,7 +285,7 @@ export async function updateRepository(
       );
     }
 
-    return mapToRepository(result.rows[0]);
+    return mapToRepository(result.rows[0] as RepositoryRow);
   } catch (error) {
     if (error instanceof DatabaseError) {
       throw error;
