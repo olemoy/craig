@@ -49,3 +49,6 @@ tmp/
 
 # Configuration
 config.json
+
+# Project improvements tracking
+improvements.md
