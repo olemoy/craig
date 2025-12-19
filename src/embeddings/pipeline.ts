@@ -4,20 +4,43 @@ import { getEmbeddingProvider } from "../config/index.js";
 import { embedTextOllama, embedTextsOllama } from "./ollama.js";
 import type { OllamaConfig } from "../config/index.js";
 
+interface TensorLike {
+  data: Float32Array | number[];
+  dims?: number[];
+}
+
+interface ModelConfig {
+  pooling: string;
+  normalize: boolean;
+  dimensions: number;
+}
+
+interface EmbeddingProvider {
+  provider: 'ollama' | 'transformers';
+  config: OllamaConfig | Record<string, unknown>;
+}
+
 function l2normalize(vec: number[]) {
   const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0) || 1);
   return vec.map((v) => v / norm);
 }
 
+function isOllamaConfig(config: OllamaConfig | Record<string, unknown>): config is OllamaConfig {
+  return 'model' in config && typeof config.model === 'string';
+}
+
 export async function embedText(text: string): Promise<number[]> {
-  const provider = getEmbeddingProvider();
+  const provider = getEmbeddingProvider() as EmbeddingProvider;
 
   if (provider.provider === "ollama") {
-    return embedTextOllama(text, provider.config as OllamaConfig);
+    if (!isOllamaConfig(provider.config)) {
+      throw new Error('Invalid Ollama config');
+    }
+    return embedTextOllama(text, provider.config);
   }
 
   // Transformers.js implementation
-  const modelConfig = getModelConfig();
+  const modelConfig = getModelConfig() as ModelConfig;
   const pipe = await getPipeline();
   const result = await pipe(text, { pooling: modelConfig.pooling });
 
@@ -25,7 +48,8 @@ export async function embedText(text: string): Promise<number[]> {
   let vec: number[];
   if (result && typeof result === "object" && "data" in result) {
     // Handle Tensor object
-    vec = Array.from(result.data as number[]);
+    const tensorResult = result as TensorLike;
+    vec = Array.from(tensorResult.data);
   } else if (Array.isArray(result) && Array.isArray(result[0])) {
     // Handle nested array
     vec = result[0];
@@ -51,14 +75,17 @@ export async function embedTexts(
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  const provider = getEmbeddingProvider();
+  const provider = getEmbeddingProvider() as EmbeddingProvider;
 
   if (provider.provider === "ollama") {
-    return embedTextsOllama(texts, provider.config as OllamaConfig, onProgress);
+    if (!isOllamaConfig(provider.config)) {
+      throw new Error('Invalid Ollama config');
+    }
+    return embedTextsOllama(texts, provider.config, onProgress);
   }
 
   // Transformers.js implementation - batch processing for progress tracking
-  const modelConfig = getModelConfig();
+  const modelConfig = getModelConfig() as ModelConfig;
   const pipe = await getPipeline();
 
   // For large batches, split into smaller chunks to report progress
@@ -95,7 +122,7 @@ export async function embedTexts(
 /**
  * Extract embeddings from pipeline result
  */
-function extractEmbeddings(result: any, textCount: number, modelConfig: any): number[][] {
+function extractEmbeddings(result: unknown, textCount: number, modelConfig: ModelConfig): number[][] {
   const results: number[][] = [];
 
   if (
@@ -105,8 +132,9 @@ function extractEmbeddings(result: any, textCount: number, modelConfig: any): nu
     "dims" in result
   ) {
     // Handle batched Tensor output
-    const data = result.data as Float32Array | number[];
-    const dims = result.dims as number[];
+    const tensorResult = result as TensorLike & { dims: number[] };
+    const data = tensorResult.data;
+    const dims = tensorResult.dims;
     const embeddingDim = dims[dims.length - 1] ?? modelConfig.dimensions;
 
     for (let i = 0; i < textCount; i++) {
@@ -118,7 +146,15 @@ function extractEmbeddings(result: any, textCount: number, modelConfig: any): nu
   } else if (Array.isArray(result)) {
     // Handle array of arrays
     for (const vec of result) {
-      const vecArray = Array.isArray(vec) ? vec : Array.from(vec as any);
+      let vecArray: number[];
+      if (Array.isArray(vec)) {
+        vecArray = vec;
+      } else if (vec && typeof vec === 'object' && 'data' in vec) {
+        const tensorVec = vec as TensorLike;
+        vecArray = Array.from(tensorVec.data);
+      } else {
+        throw new Error(`Unexpected vector format in batch result`);
+      }
       results.push(modelConfig.normalize ? l2normalize(vecArray) : vecArray);
     }
   } else {

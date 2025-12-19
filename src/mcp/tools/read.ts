@@ -67,11 +67,19 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
     [repo.id, absolutePath]
   );
 
+  interface FileInfoRow {
+    id: number;
+    file_path: string;
+    file_type: 'code' | 'text' | 'binary';
+    size_bytes: number;
+    language: string | null;
+  }
+
   if (result.rows.length === 0) {
     throw createNotFoundError(`File '${filePath}' not found in repository '${repository}'`);
   }
 
-  const file = result.rows[0];
+  const file = result.rows[0] as FileInfoRow;
 
   // Read file content from disk
   let content: string;

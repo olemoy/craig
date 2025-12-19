@@ -58,11 +58,19 @@ export async function getFileInfo(args: GetFileInfoArgs): Promise<FileInfoResult
     [repo.id, absolutePath]
   );
 
+  interface FileMetadataRow {
+    id: number;
+    file_path: string;
+    file_type: 'code' | 'text' | 'binary';
+    size_bytes: number;
+    language: string | null;
+  }
+
   if (result.rows.length === 0) {
     throw createNotFoundError(`File '${filePath}' not found in repository '${repository}'`);
   }
 
-  const file = result.rows[0];
+  const file = result.rows[0] as FileMetadataRow;
 
   // Return metadata only - agents must use read tool for content
   return {

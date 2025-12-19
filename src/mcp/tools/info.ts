@@ -41,6 +41,10 @@ export async function getInfo(args: GetInfoArgs): Promise<InfoResult> {
     throw createNotFoundError(`Repository '${repository}' not found`);
   }
 
+  interface CountRow {
+    count: string | number;
+  }
+
   const client = await getClient();
 
   // Get file count
@@ -48,7 +52,8 @@ export async function getInfo(args: GetInfoArgs): Promise<InfoResult> {
     'SELECT COUNT(*) as count FROM files WHERE repository_id = $1',
     [repo.id]
   );
-  const fileCount = parseInt(fileCountResult.rows[0]?.count ?? '0', 10);
+  const fileCountRow = fileCountResult.rows[0] as CountRow | undefined;
+  const fileCount = fileCountRow ? (typeof fileCountRow.count === 'string' ? parseInt(fileCountRow.count, 10) : fileCountRow.count) : 0;
 
   // Get chunk count
   const chunkCountResult = await client.query(
@@ -58,7 +63,8 @@ export async function getInfo(args: GetInfoArgs): Promise<InfoResult> {
     WHERE f.repository_id = $1`,
     [repo.id]
   );
-  const chunkCount = parseInt(chunkCountResult.rows[0]?.count ?? '0', 10);
+  const chunkCountRow = chunkCountResult.rows[0] as CountRow | undefined;
+  const chunkCount = chunkCountRow ? (typeof chunkCountRow.count === 'string' ? parseInt(chunkCountRow.count, 10) : chunkCountRow.count) : 0;
 
   return {
     repository: repo.name,

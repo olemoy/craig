@@ -34,6 +34,20 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
     throw createNotFoundError(`Repository '${repository}' not found`);
   }
 
+  interface FileTypeRow {
+    file_type: string;
+    count: string | number;
+  }
+
+  interface CountRow {
+    count: string | number;
+  }
+
+  interface ExtensionRow {
+    extension: string | null;
+    count: string | number;
+  }
+
   const client = await getClient();
 
   // Get file counts by type
@@ -54,7 +68,8 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
   };
 
   for (const row of fileStatsResult.rows) {
-    fileStats[row.file_type] = parseInt(row.count, 10);
+    const typedRow = row as FileTypeRow;
+    fileStats[typedRow.file_type] = typeof typedRow.count === 'string' ? parseInt(typedRow.count, 10) : typedRow.count;
   }
 
   const totalFiles = fileStats.code + fileStats.text + fileStats.binary;
@@ -68,7 +83,8 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
     [repo.id]
   );
 
-  const totalChunks = parseInt(chunksResult.rows[0]?.count ?? '0', 10);
+  const chunksRow = chunksResult.rows[0] as CountRow | undefined;
+  const totalChunks = chunksRow ? (typeof chunksRow.count === 'string' ? parseInt(chunksRow.count, 10) : chunksRow.count) : 0;
 
   // Get total embeddings
   const embeddingsResult = await client.query(
@@ -80,7 +96,8 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
     [repo.id]
   );
 
-  const totalEmbeddings = parseInt(embeddingsResult.rows[0]?.count ?? '0', 10);
+  const embeddingsRow = embeddingsResult.rows[0] as CountRow | undefined;
+  const totalEmbeddings = embeddingsRow ? (typeof embeddingsRow.count === 'string' ? parseInt(embeddingsRow.count, 10) : embeddingsRow.count) : 0;
 
   // Get file extension distribution for code files
   // The 'language' column stores file extensions (e.g., '.py', '.sql', '.java')
@@ -97,8 +114,9 @@ export async function getStats(args: GetStatsArgs): Promise<RepositoryStats> {
 
   const extensions: Record<string, number> = {};
   for (const row of extensionsResult.rows) {
-    if (row.extension) {
-      extensions[row.extension] = parseInt(row.count, 10);
+    const typedRow = row as ExtensionRow;
+    if (typedRow.extension) {
+      extensions[typedRow.extension] = typeof typedRow.count === 'string' ? parseInt(typedRow.count, 10) : typedRow.count;
     }
   }
 

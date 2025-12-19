@@ -242,7 +242,11 @@ export async function processDirectory(
              WHERE c.file_id = $1`,
             [existingFile.id]
           );
-          const embeddingCount = parseInt((embeddingResult.rows[0] as any).count, 10);
+          interface CountRow {
+            count: string | number;
+          }
+          const countRow = embeddingResult.rows[0] as CountRow;
+          const embeddingCount = typeof countRow.count === 'string' ? parseInt(countRow.count, 10) : countRow.count;
           if (embeddingCount === 0) {
             // Has chunks but no embeddings - failed during embedding
             needsCleanup = true;

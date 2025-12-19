@@ -26,6 +26,10 @@ export interface GetDirectoriesResult {
   next?: number | undefined;
 }
 
+interface FilePathRow {
+  file_path: string;
+}
+
 export async function getDirectories(args: GetDirectoriesArgs): Promise<GetDirectoriesResult> {
   const { repository, path, depth = 0, limit = 100, offset = 0 } = args;
 
@@ -52,7 +56,7 @@ export async function getDirectories(args: GetDirectoriesArgs): Promise<GetDirec
   const repoPath = repo.path.endsWith('/') ? repo.path : repo.path + '/';
 
   let sql = `SELECT DISTINCT file_path FROM files WHERE repository_id = $1`;
-  const params: any[] = [repo.id];
+  const params: (string | number)[] = [repo.id];
 
   // Filter by path if provided
   if (path) {
@@ -68,7 +72,8 @@ export async function getDirectories(args: GetDirectoriesArgs): Promise<GetDirec
   const dirSet = new Set<string>();
 
   for (const row of result.rows) {
-    const relativePath = row.file_path.replace(repoPath, '');
+    const typedRow = row as FilePathRow;
+    const relativePath = typedRow.file_path.replace(repoPath, '');
     const parts = relativePath.split('/');
 
     // Remove the filename (last part) and build directory paths

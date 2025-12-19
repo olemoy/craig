@@ -26,6 +26,14 @@ export interface ListFilesResult {
   next?: number | undefined;
 }
 
+interface FilePathRow {
+  file_path: string;
+}
+
+interface CountRow {
+  count: string | number;
+}
+
 export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
   const { repository, path, pattern, limit = 100, offset = 0 } = args;
 
@@ -53,7 +61,7 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
 
   // Build base query for counting and fetching
   let baseWhere = `WHERE repository_id = $1`;
-  const params: any[] = [repo.id];
+  const params: (string | number)[] = [repo.id];
 
   // Filter by path if provided
   if (path) {
@@ -76,7 +84,8 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
     `SELECT COUNT(*) as count FROM files ${baseWhere}`,
     params
   );
-  const total = parseInt(countResult.rows[0].count, 10);
+  const countRow = countResult.rows[0] as CountRow;
+  const total = typeof countRow.count === 'string' ? parseInt(countRow.count, 10) : countRow.count;
 
   // Build paginated query
   let sql = `SELECT file_path FROM files ${baseWhere} ORDER BY file_path`;
@@ -95,9 +104,10 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
   const result = await client.query(sql, queryParams);
 
   // Convert absolute paths to relative paths
-  const files: string[] = result.rows.map((row: any) =>
-    row.file_path.replace(repoPath, '')
-  );
+  const files: string[] = result.rows.map((row) => {
+    const typedRow = row as FilePathRow;
+    return typedRow.file_path.replace(repoPath, '');
+  });
 
   const count = files.length;
   const more = limit !== undefined && (offset + count) < total;

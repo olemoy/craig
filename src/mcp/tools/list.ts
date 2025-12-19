@@ -6,6 +6,15 @@
 import { getClient } from '../../db/client.js';
 import type { RepositoryInfo } from '../types.js';
 
+interface RepositoryRow {
+  id: string;
+  name: string;
+  path: string;
+  commit_sha: string | null;
+  ingested_at: string;
+  file_count: string | number;
+}
+
 export async function listRepositories(): Promise<RepositoryInfo[]> {
   const client = await getClient();
 
@@ -24,11 +33,14 @@ export async function listRepositories(): Promise<RepositoryInfo[]> {
     ORDER BY r.ingested_at DESC
   `);
 
-  return result.rows.map((row: any) => ({
-    id: row.id,
-    name: row.name,
-    fileCount: parseInt(row.file_count, 10),
-  }));
+  return result.rows.map((row) => {
+    const typedRow = row as RepositoryRow;
+    return {
+      id: typedRow.id,
+      name: typedRow.name,
+      fileCount: typeof typedRow.file_count === 'string' ? parseInt(typedRow.file_count, 10) : typedRow.file_count,
+    };
+  });
 }
 
 export const listRepositoriesTool = {

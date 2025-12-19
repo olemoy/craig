@@ -16,6 +16,19 @@ export interface FindSimilarArgs {
   limit?: number;
 }
 
+interface SimilarResultRow {
+  chunk_id: number;
+  file_id: number;
+  content: string;
+  repository_id: string;
+  file_path: string;
+  file_type: 'code' | 'text' | 'binary';
+  language: string | null;
+  repository_name: string;
+  repository_path: string;
+  similarity: number | string;
+}
+
 export async function findSimilar(args: FindSimilarArgs): Promise<SimilarCodeResult[]> {
   const { code, repository, limit = 10 } = args;
 
@@ -47,7 +60,7 @@ export async function findSimilar(args: FindSimilarArgs): Promise<SimilarCodeRes
     JOIN repositories r ON r.id = f.repository_id
   `;
 
-  const params: any[] = [vectorString];
+  const params: (string | number)[] = [vectorString];
   let paramIndex = 2;
 
   // Filter by repository if specified
@@ -78,20 +91,21 @@ export async function findSimilar(args: FindSimilarArgs): Promise<SimilarCodeRes
 
   const result = await client.query(sql, params);
 
-  return result.rows.map((row: any) => {
+  return result.rows.map((row) => {
+    const typedRow = row as SimilarResultRow;
     // Convert absolute path to relative path
-    const repoPath = row.repository_path.endsWith('/') ? row.repository_path : row.repository_path + '/';
-    const relativePath = row.file_path.replace(repoPath, '');
+    const repoPath = typedRow.repository_path.endsWith('/') ? typedRow.repository_path : typedRow.repository_path + '/';
+    const relativePath = typedRow.file_path.replace(repoPath, '');
 
     return {
-      repository: row.repository_name,
+      repository: typedRow.repository_name,
       filePath: relativePath,
-      fileType: row.file_type,
-      language: row.language,
-      content: row.file_type === 'binary'
+      fileType: typedRow.file_type,
+      language: typedRow.language,
+      content: typedRow.file_type === 'binary'
         ? '(Binary file)'
-        : row.content,
-      similarity: parseFloat(row.similarity),
+        : typedRow.content,
+      similarity: typeof typedRow.similarity === 'string' ? parseFloat(typedRow.similarity) : typedRow.similarity,
     };
   });
 }
