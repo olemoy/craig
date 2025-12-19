@@ -74,6 +74,15 @@ export async function processDirectory(
     console.log(maxSizeMsg);
   }
 
+  if (processingConfig.skipLargeFiles && processingConfig.maxChunksPerFile) {
+    const chunkLimitMsg = `Chunk limit: ${processingConfig.maxChunksPerFile} chunks per file`;
+    if (progress) {
+      progress.log(chunkLimitMsg);
+    } else {
+      console.log(chunkLimitMsg);
+    }
+  }
+
   progress?.updatePhase('discovery', 'Discovering files...');
   const discoveredFiles = await discoverFiles(root);
 
