@@ -1,18 +1,16 @@
 # CRAIG - Code Repository AI Graph
 
-Semantic search for code repositories using embeddings and vector similarity.
+Semantic code search using embeddings and vector similarity.
 
 ## Overview
 
-CRAIG indexes code repositories with semantic chunking and enables natural language search across your codebase. Built with PGlite, pgvector, and embedding models (Transformers.js or Ollama).
+CRAIG indexes code repositories with semantic chunking for natural language search across your codebase.
 
 **Key Features:**
-- 🔍 Semantic code search with natural language queries
-- 🧩 **Smart chunking** with symbol extraction and line tracking
-- 📍 Precise navigation with line numbers and symbol definitions
-- 🎯 **Symbol-aware search** - find functions, classes, and interfaces by name
+- 🔍 Semantic code search with natural language
+- 🧩 Smart chunking with symbol extraction and line tracking
+- 🎯 Symbol-aware search - find functions, classes, interfaces by name
 - 📦 Local-first with PGlite (no external database)
-- 🚀 Fast vector similarity search with pgvector
 - 🤖 MCP server for AI assistant integration
 - 🌐 Multi-language support (TypeScript, JavaScript, Python, Java, Kotlin, Go, Rust, C, C++)
 
@@ -61,7 +59,7 @@ ollama pull all-minilm
 }
 ```
 
-⚠️ **Important:** Configure dimensions before ingesting repositories. Changing dimensions requires database migration.
+⚠️ Configure dimensions before ingesting. Changing dimensions requires database migration.
 
 ### Basic Usage
 
@@ -82,39 +80,17 @@ bun src/cli/index.ts stats my-project
 bun src/cli/index.ts health check
 ```
 
-## How CRAIG Chunks Code
-
-CRAIG uses intelligent semantic chunking to preserve code structure and enable precise navigation.
-
-### Chunking Strategy
+## Chunking Strategy
 
 **Language-Aware Boundaries:**
-- Splits code at function, class, interface, and type boundaries
-- Detects symbols using language-specific patterns
-- Preserves complete semantic units
+- Splits at function, class, interface, and type boundaries
+- Preserves complete semantic units with overlap for context
 
-**Rich Metadata:**
-Each chunk includes:
-- **Symbol Name**: Extracted function/class/interface name
-- **Symbol Type**: `function`, `class`, `interface`, `method`, `struct`, etc.
-- **Chunk Type**: Semantic classification for filtering
-- **Line Numbers**: Exact start and end lines (1-indexed)
-- **Definition Flag**: Marks chunks containing symbol definitions
-- **Overlap**: 64 tokens from previous chunk for context preservation
-
-**Example:**
-```typescript
-// Original code
-export class UserService {
-  async authenticate(credentials) { ... }
-  async createUser(data) { ... }
-}
-
-// Creates 3 chunks:
-// 1. Class definition (isDefinition: true, symbolName: "UserService", lines: 1-2)
-// 2. authenticate method (symbolName: "authenticate", lines: 2-3)
-// 3. createUser method (symbolName: "createUser", lines: 3-4)
-```
+**Chunk Metadata:**
+- Symbol name and type (function, class, interface, method, struct, etc.)
+- Line numbers (1-indexed start/end)
+- Definition flag for symbol declarations
+- 64 token overlap with previous chunk
 
 ### Supported Languages
 
@@ -155,60 +131,25 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 **Available Tools:**
 - `query` - Semantic search with natural language
 - `repos` - List repositories with stats
-- `files` - List files with pagination
+- `files` - List files with pagination and pattern search (e.g., "*.ts")
 - `dirs` - Directory structure navigation
-- `info` - Repository info with absolute path
+- `info` - Repository info
 - `stats` - Comprehensive statistics
-- `file_info` - File metadata with path
+- `file_info` - File metadata (type, language, size)
+- `read` - Read file content through MCP
 - `similar` - Find semantically similar code
 
 ## Ingestion Logging
 
-CRAIG automatically creates detailed logs for each ingestion session to help monitor progress and debug issues.
+Logs are created at `logs/<repository>-ingestion-<date>.log`
 
-### Log Files
-
-**Location:** `logs/<repository-name>-ingestion-<date>.log`
-
-**Example:** `logs/my-project-ingestion-2025-12-18.log`
-
-### Log Format
-
-```
-2025-12-18 15:32:10.234 | START  | /path/to/file.ts
-2025-12-18 15:32:11.156 | DONE   | /path/to/file.ts | 15 chunks | 921ms
-2025-12-18 15:32:12.245 | SKIP   | /path/to/large-file.sql | Too large: 15.2 MB
-2025-12-18 15:32:13.301 | ERROR  | /path/to/bad-file.ts | SyntaxError: Unexpected token
-```
-
-### Monitor in Real-Time
-
-**Tail the log while ingesting:**
 ```bash
-# In one terminal
-bun src/cli/index.ts ingest /path/to/repo
-
-# In another terminal
+# Monitor in real-time
 tail -f logs/<reponame>-ingestion-<date>.log
-```
 
-**Find errors:**
-```bash
+# Find errors
 grep ERROR logs/*.log
 ```
-
-**Session summaries:**
-```bash
-grep "SESSION END" logs/my-project-ingestion-2025-12-18.log
-```
-
-### Log Management
-
-- One log file per project per day
-- Multiple sessions append to same file
-- Session markers separate different runs
-- Gitignored by default (in `logs/`)
-- Clean up old logs: `find logs/ -name "*.log" -mtime +30 -delete`
 
 ## Advanced Features
 
@@ -244,13 +185,11 @@ Detects modified, added, and deleted files automatically.
 
 ### Custom Dimensions
 
-For higher quality embeddings (requires migration):
-1. Update `config.json` with new dimensions (e.g., 768, 1024)
+To change embedding dimensions:
+1. Update `config.json` (e.g., 768, 1024)
 2. Update `src/db/migrations/001_initial_schema.sql` line 77
 3. Delete database: `rm -rf data/`
 4. Re-ingest repositories
-
-See [docs/embedding-dimensions.md](docs/embedding-dimensions.md) for details.
 
 ## Project Structure
 
@@ -308,7 +247,5 @@ MIT
 ## Built With
 
 - [PGlite](https://pglite.dev/) - Lightweight PostgreSQL
-- [pgvector](https://github.com/pgvector/pgvector) - Vector similarity
 - [Transformers.js](https://huggingface.co/docs/transformers.js) - ML models
 - [Ollama](https://ollama.ai/) - Local embeddings
-- [Claude Code](https://claude.com/claude-code) - AI coding assistant
