@@ -1,6 +1,6 @@
 /**
  * info tool implementation
- * Gets basic information for a repository including absolute path
+ * Gets basic information for a repository
  */
 
 import { getRepositoryByName, getRepositoryByPath, getRepository } from '../../db/repositories.js';
@@ -15,7 +15,6 @@ export interface GetInfoArgs {
 
 export interface InfoResult {
   repository: string;
-  path: string;
   fileCount: number;
   chunkCount: number;
 }
@@ -68,7 +67,6 @@ export async function getInfo(args: GetInfoArgs): Promise<InfoResult> {
 
   return {
     repository: repo.name,
-    path: repo.path,
     fileCount,
     chunkCount,
   };
@@ -76,7 +74,7 @@ export async function getInfo(args: GetInfoArgs): Promise<InfoResult> {
 
 export const getInfoTool = {
   name: 'info',
-  description: 'Get basic repository information. Parameters: repository (required, string - name/path/ID). Returns repository name, absolute path, file count, and chunk count. Use this to get the absolute path or quick overview of a repository.',
+  description: 'Get basic repository information. Parameters: repository (required, string - name/path/ID). Returns repository name, file count, and chunk count. Use this to get a quick overview of a repository.',
   inputSchema: {
     type: 'object',
     properties: {
