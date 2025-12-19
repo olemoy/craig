@@ -15,7 +15,7 @@ import {embedTexts} from '../embeddings/pipeline.js';
 import {analyzeDelta, analyzeResume, deleteFileAndChunks, updateFile} from './delta.js';
 import type {RepositoryId, FileId} from '../db/types.js';
 import type {ProgressReporter} from '../cli/progress.js';
-import {logProcessingError, formatFileSize, generateErrorSummary} from './error-logger.js';
+import {logProcessingError, formatFileSize, generateErrorSummary, initializeErrorLogger, getErrorLogFileName} from './error-logger.js';
 import {createIngestionLogger} from '../utils/ingestion-logger.js';
 
 export async function processDirectory(
@@ -64,6 +64,9 @@ export async function processDirectory(
     }
     isDeltaIngestion = true;
   }
+
+  // Initialize error logger for this repository
+  initializeErrorLogger(repo.name);
 
   // Display processing configuration early
   const processingConfig = DEFAULT_CONFIG;
@@ -610,12 +613,13 @@ export async function processDirectory(
   // Show error summary if there were any processing errors
   const errorSummary = await generateErrorSummary();
   if (errorSummary && !errorSummary.includes('No processing errors') && !errorSummary.includes('No error log')) {
+    const errorLogFile = getErrorLogFileName();
     if (progress) {
       progress.log('\n' + errorSummary);
-      progress.log('See processing-error.log for detailed error information.');
+      progress.log(`See ${errorLogFile} for detailed error information.`);
     } else {
       console.log(errorSummary);
-      console.log('See processing-error.log for detailed error information.');
+      console.log(`See ${errorLogFile} for detailed error information.`);
     }
   }
 }

@@ -1,9 +1,10 @@
 /**
  * Error logger for file processing
- * Logs processing errors to processing-error.log with timestamps
+ * Logs processing errors to logs/<repo-name>-errors-<date>.log
  */
 
 import fs from 'fs';
+import { join } from 'path';
 import { resolveProjectPath } from '../utils/paths.js';
 
 export interface ProcessingError {
@@ -14,12 +15,42 @@ export interface ProcessingError {
   details?: any;
 }
 
+// Current error log file path (set by initializeErrorLogger)
+let currentErrorLogPath: string | null = null;
+
+/**
+ * Initialize error logger for a repository
+ * Creates log file in logs/<repo-name>-errors-<date>.log
+ */
+export function initializeErrorLogger(repositoryName: string): string {
+  const logsDir = resolveProjectPath('logs');
+  const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const sanitizedName = repositoryName.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+  currentErrorLogPath = join(logsDir, `${sanitizedName}-errors-${date}.log`);
+
+  // Ensure logs directory exists
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+
+  return currentErrorLogPath;
+}
+
+/**
+ * Get the current error log file name (just the filename, not the full path)
+ */
+export function getErrorLogFileName(): string {
+  if (!currentErrorLogPath) {
+    return 'processing-error.log';
+  }
+  return currentErrorLogPath.split('/').pop() || 'processing-error.log';
+}
+
 /**
  * Log a processing error to the error log file
- * File is created in the project root as processing-error.log
  */
 export async function logProcessingError(error: ProcessingError): Promise<void> {
-  const logFilePath = resolveProjectPath('processing-error.log');
+  const logFilePath = currentErrorLogPath || resolveProjectPath('processing-error.log');
 
   const timestamp = error.timestamp.toISOString();
   const logEntry = {
@@ -61,7 +92,7 @@ export function formatFileSize(bytes: number): string {
  * Create a summary report of all errors from the log file
  */
 export async function generateErrorSummary(): Promise<string> {
-  const logFilePath = resolveProjectPath('processing-error.log');
+  const logFilePath = currentErrorLogPath || resolveProjectPath('processing-error.log');
 
   try {
     const content = await fs.promises.readFile(logFilePath, 'utf-8');
@@ -96,7 +127,7 @@ export async function generateErrorSummary(): Promise<string> {
  * Clear the error log file
  */
 export async function clearErrorLog(): Promise<void> {
-  const logFilePath = resolveProjectPath('processing-error.log');
+  const logFilePath = currentErrorLogPath || resolveProjectPath('processing-error.log');
 
   try {
     await fs.promises.unlink(logFilePath);
