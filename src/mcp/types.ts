@@ -15,7 +15,6 @@ export interface SearchResult {
 
 export interface FileInfoResult {
   path: string;
-  absolutePath: string;
   fileType: 'code' | 'text' | 'binary';
   language: string | null; // File extension for code files (e.g., '.py', '.sql')
   size: number;

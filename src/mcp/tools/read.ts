@@ -1,20 +1,29 @@
 /**
- * file_info tool implementation
- * Retrieves file metadata (type, language, size) without file path access
+ * read_file tool implementation
+ * Returns complete file content through MCP
  */
 
+import { readFile as fsReadFile } from 'fs/promises';
 import { getClient } from '../../db/client.js';
 import { getRepositoryByPath, getRepositoryByName, getRepository } from '../../db/repositories.js';
-import type { FileInfoResult } from '../types.js';
 import { toRepositoryId } from '../../db/types.js';
 import { createInvalidParamsError, createNotFoundError } from '../errors.js';
 
-export interface GetFileInfoArgs {
+export interface ReadFileArgs {
   filePath: string;
   repository: string;
 }
 
-export async function getFileInfo(args: GetFileInfoArgs): Promise<FileInfoResult> {
+export interface ReadFileResult {
+  repository: string;
+  filePath: string;
+  content: string;
+  fileType: 'code' | 'text' | 'binary';
+  language: string | null;
+  size: number;
+}
+
+export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
   const { filePath, repository } = args;
 
   if (!filePath || filePath.trim().length === 0) {
@@ -44,7 +53,7 @@ export async function getFileInfo(args: GetFileInfoArgs): Promise<FileInfoResult
   const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
   const absolutePath = repoPath + normalizedPath;
 
-  // Query file using absolute path
+  // Query file metadata
   const client = await getClient();
   const result = await client.query(
     `SELECT
@@ -64,24 +73,38 @@ export async function getFileInfo(args: GetFileInfoArgs): Promise<FileInfoResult
 
   const file = result.rows[0];
 
-  // Return metadata only - agents must use read tool for content
+  // Read file content from disk
+  let content: string;
+  try {
+    if (file.file_type === 'binary') {
+      content = '(Binary file - content not available as text)';
+    } else {
+      const buffer = await fsReadFile(file.file_path);
+      content = buffer.toString('utf-8');
+    }
+  } catch (error) {
+    throw createNotFoundError(`Failed to read file '${filePath}': ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+
   return {
-    path: normalizedPath,
+    repository: repo.name,
+    filePath: normalizedPath,
+    content,
     fileType: file.file_type,
     language: file.language,
     size: file.size_bytes,
   };
 }
 
-export const getFileInfoTool = {
-  name: 'file_info',
-  description: 'Get file metadata (type, language, size). Parameters: filePath (required, string - relative path like "src/main.ts" or "README.md"), repository (required, string - name/path/ID). Returns: path (relative), fileType (code/text/binary), language, size (bytes). To read file content, use the "read" tool instead.',
+export const readFileTool = {
+  name: 'read',
+  description: 'Read complete file content through MCP. Parameters: filePath (required, string - relative path like "src/main.ts" or "README.md"), repository (required, string - name/path/ID). Returns: repository, filePath, content (full text for code/text files, placeholder for binary), fileType, language, size. Use this to access file content instead of direct file system access.',
   inputSchema: {
     type: 'object',
     properties: {
       filePath: {
         type: 'string',
-        description: 'Relative file path in repository (e.g., "README.md", "src/main.ts")',
+        description: 'Relative file path in repository (e.g., "src/main.ts", "README.md")',
       },
       repository: {
         type: 'string',

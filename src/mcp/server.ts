@@ -19,6 +19,7 @@ import { listRepositories, listRepositoriesTool } from './tools/list.js';
 import { listFiles, listFilesTool } from './tools/files.js';
 import { getDirectories, getDirectoriesTool } from './tools/dirs.js';
 import { getInfo, getInfoTool } from './tools/info.js';
+import { readFile, readFileTool } from './tools/read.js';
 import { handleError } from './errors.js';
 
 // Server instance
@@ -45,6 +46,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       getInfoTool,
       getStatsTool,
       getFileInfoTool,
+      readFileTool,
       findSimilarTool,
     ],
   };
@@ -118,6 +120,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'file_info': {
         const result = await getFileInfo(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+
+      case 'read': {
+        const result = await readFile(args as any);
         return {
           content: [
             {

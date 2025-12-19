@@ -12,6 +12,7 @@ import { createInvalidParamsError, createNotFoundError } from '../errors.js';
 export interface ListFilesArgs {
   repository: string;
   path?: string;
+  pattern?: string;
   limit?: number;
   offset?: number;
 }
@@ -26,7 +27,7 @@ export interface ListFilesResult {
 }
 
 export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
-  const { repository, path, limit = 100, offset = 0 } = args;
+  const { repository, path, pattern, limit = 100, offset = 0 } = args;
 
   if (!repository || repository.trim().length === 0) {
     throw createInvalidParamsError('repository parameter is required');
@@ -58,8 +59,16 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
   if (path) {
     const filterPath = path.startsWith('/') ? path.slice(1) : path;
     const fullFilterPath = repoPath + filterPath;
-    baseWhere += ` AND file_path LIKE $2`;
+    baseWhere += ` AND file_path LIKE $${params.length + 1}`;
     params.push(fullFilterPath + '%');
+  }
+
+  // Filter by filename pattern if provided (glob-style: *.ts, *config*, etc.)
+  if (pattern) {
+    // Convert glob pattern to SQL LIKE pattern
+    const sqlPattern = pattern.replace(/\*/g, '%').replace(/\?/g, '_');
+    baseWhere += ` AND file_path LIKE $${params.length + 1}`;
+    params.push(sqlPattern);
   }
 
   // Get total count
@@ -106,7 +115,7 @@ export async function listFiles(args: ListFilesArgs): Promise<ListFilesResult> {
 
 export const listFilesTool = {
   name: 'files',
-  description: 'List files in repository as relative paths. Parameters: repository (required, string - name/path/ID), path (optional, string - filter to subdirectory), limit (optional, number, default: 100 - keep low to avoid context bloat), offset (optional, number, default: 0 - for pagination). Returns paginated results with total count and "more" flag. Start with root exploration, then drill down into specific paths.',
+  description: 'List files in repository as relative paths. Parameters: repository (required, string - name/path/ID), path (optional, string - filter to subdirectory), pattern (optional, string - filename pattern like "*.ts" or "*config*"), limit (optional, number, default: 100 - keep low to avoid context bloat), offset (optional, number, default: 0 - for pagination). Returns paginated results with total count and "more" flag. Use pattern to search by filename.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -117,6 +126,10 @@ export const listFilesTool = {
       path: {
         type: 'string',
         description: 'Optional: filter to files under this path (e.g., "src/", "docs/")',
+      },
+      pattern: {
+        type: 'string',
+        description: 'Optional: filename pattern using wildcards (e.g., "*.ts", "*test*", "config.*")',
       },
       limit: {
         type: 'number',
