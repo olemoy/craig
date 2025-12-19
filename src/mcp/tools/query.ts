@@ -42,6 +42,7 @@ export async function query(args: QueryArgs): Promise<SearchResult[]> {
       f.file_type,
       f.language,
       r.name as repository_name,
+      r.path as repository_path,
       1 - (e.embedding <=> $1::vector) AS similarity
     FROM embeddings e
     JOIN chunks c ON c.id = e.chunk_id
@@ -88,16 +89,22 @@ export async function query(args: QueryArgs): Promise<SearchResult[]> {
 
   const result = await client.query(sql, params);
 
-  return result.rows.map((row: any) => ({
-    repository: row.repository_name,
-    filePath: row.file_path,
-    fileType: row.file_type,
-    language: row.language,
-    content: row.file_type === 'binary'
-      ? '(Binary file - metadata only)'
-      : row.content,
-    similarity: parseFloat(row.similarity),
-  }));
+  return result.rows.map((row: any) => {
+    // Convert absolute path to relative path
+    const repoPath = row.repository_path.endsWith('/') ? row.repository_path : row.repository_path + '/';
+    const relativePath = row.file_path.replace(repoPath, '');
+
+    return {
+      repository: row.repository_name,
+      filePath: relativePath,
+      fileType: row.file_type,
+      language: row.language,
+      content: row.file_type === 'binary'
+        ? '(Binary file - metadata only)'
+        : row.content,
+      similarity: parseFloat(row.similarity),
+    };
+  });
 }
 
 export const queryTool = {

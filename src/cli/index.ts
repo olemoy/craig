@@ -9,6 +9,7 @@ import { statsCmd } from "./commands/stats.js";
 import { modelCmd } from "./commands/model.js";
 import { filesCmd } from "./commands/files.js";
 import { configCmd } from "./commands/config.js";
+import { healthCmd } from "./commands/health.js";
 
 function help() {
   console.log("bun cli <command> [options]\n");
@@ -23,6 +24,7 @@ function help() {
   console.log("  remove <name|id>                      Remove repository");
   console.log("  model <action>                        Model management (fetch)");
   console.log("  config [show|test]                    Show or test embedding configuration");
+  console.log("  health <check|repair|validate>        Database health and repair");
   console.log("\nProgress Options:");
   console.log("  (default)  Fixed progress bar with real-time stats");
   console.log("  --verbose  Detailed logs for each file");
@@ -71,6 +73,10 @@ async function main() {
     }
     if (cmd === "config") {
       await configCmd(args.slice(1));
+      return;
+    }
+    if (cmd === "health") {
+      await healthCmd(args.slice(1));
       return;
     }
     console.error("Unknown command:", cmd);

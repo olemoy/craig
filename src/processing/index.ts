@@ -29,6 +29,11 @@ export async function processDirectory(
   const resume = opts?.resume ?? false;
   const log = verbose ? console.log : () => {};
 
+  // Helper to convert absolute paths to relative paths for display
+  const toRelativePath = (absolutePath: string, repoPath: string): string => {
+    return path.relative(repoPath, absolutePath);
+  };
+
   // Get or create repository record
   let repo = await getRepositoryByPath(root);
   let isDeltaIngestion = false;
@@ -111,8 +116,7 @@ export async function processDirectory(
   } else if (isDeltaIngestion) {
     const delta = await analyzeDelta(repo, discoveredFiles);
 
-    const deltaMsg = `Delta Analysis: 📄 Unchanged: ${delta.unchanged.length}  ✏️ Modified: ${delta.toUpdate.length}  ➕ New: ${delta.toAdd.length}  ➖ Deleted: ${delta.toDelete.length}`;
-    console.log(deltaMsg);
+    // Delta analysis summary is now shown by the spinner in analyzeDelta()
 
     // Provide guidance if many files are marked as modified
     if (delta.toUpdate.length > 0 && delta.toUpdate.length > delta.toAdd.length * 0.5) {
@@ -234,7 +238,8 @@ export async function processDirectory(
         }
 
         if (needsCleanup) {
-          log(`[${fmtTime(new Date())}] Cleaning up failed file for retry: ${f}`);
+          const displayPath = toRelativePath(f, repo.path);
+          log(`[${fmtTime(new Date())}] Cleaning up failed file for retry: ${displayPath}`);
           await deleteFileAndChunks(existingFile.id);
           existingFile = null; // Treat as new file for re-insertion
         }
@@ -244,6 +249,7 @@ export async function processDirectory(
 
       // Check file size before processing
       if (stat.size > DEFAULT_CONFIG.maxFileSizeBytes) {
+        const displayPath = toRelativePath(f, repo.path);
         const errorMsg = `File too large: ${formatFileSize(stat.size)} (max: ${formatFileSize(DEFAULT_CONFIG.maxFileSizeBytes)})`;
         await logProcessingError({
           timestamp: new Date(),
@@ -257,9 +263,9 @@ export async function processDirectory(
         });
 
         if (progress) {
-          progress.error(`Skipping ${f}: ${errorMsg}`);
+          progress.error(`Skipping ${displayPath}: ${errorMsg}`);
         } else {
-          console.error(`ERROR: Skipping ${f}: ${errorMsg}`);
+          console.error(`ERROR: Skipping ${displayPath}: ${errorMsg}`);
         }
 
         skippedFiles++;
@@ -267,6 +273,42 @@ export async function processDirectory(
         logger.skip(f, `File too large: ${formatFileSize(stat.size)}`);
         progress?.updateFile(f, 0);
         continue; // Skip this file and continue with the next one
+      }
+
+      // Pre-filter by estimated chunk count (avoid reading obviously large files)
+      if (meta.fileType !== 'binary' &&
+          DEFAULT_CONFIG.skipLargeFiles &&
+          DEFAULT_CONFIG.maxChunksPerFile) {
+        // Quick estimation: fileSize / (tokenTarget * 4 chars/token)
+        const estimatedChunks = Math.ceil(stat.size / (DEFAULT_CONFIG.tokenTarget * 4));
+        const threshold = DEFAULT_CONFIG.maxChunksPerFile * 1.5; // Add 50% buffer for estimation error
+
+        if (estimatedChunks > threshold) {
+          const displayPath = toRelativePath(f, repo.path);
+          const warnMsg = `File estimated at ~${estimatedChunks} chunks (limit: ${DEFAULT_CONFIG.maxChunksPerFile})`;
+          await logProcessingError({
+            timestamp: new Date(),
+            filePath: f,
+            errorType: 'estimated_too_many_chunks',
+            message: warnMsg,
+            details: {
+              estimatedChunks,
+              maxChunks: DEFAULT_CONFIG.maxChunksPerFile,
+              fileSize: stat.size,
+            },
+          });
+
+          if (progress) {
+            progress.log(`⏭️  Skipping ${displayPath}: ${warnMsg}`);
+          } else {
+            console.log(`⏭️  Skipping ${displayPath}: ${warnMsg}`);
+          }
+
+          skippedFiles++;
+          logger.skip(f, warnMsg);
+          progress?.updateFile(f, 0);
+          continue;
+        }
       }
 
       if (meta.fileType === 'binary') {
@@ -321,6 +363,35 @@ export async function processDirectory(
           language: meta.language ?? null
         });
         log(`  → Created ${chunks.length} chunks`);
+
+        // Check chunk count limit
+        if (DEFAULT_CONFIG.skipLargeFiles &&
+            DEFAULT_CONFIG.maxChunksPerFile &&
+            chunks.length > DEFAULT_CONFIG.maxChunksPerFile) {
+          const displayPath = toRelativePath(f, repo.path);
+          const warnMsg = `File produces ${chunks.length} chunks (limit: ${DEFAULT_CONFIG.maxChunksPerFile})`;
+          await logProcessingError({
+            timestamp: new Date(),
+            filePath: f,
+            errorType: 'too_many_chunks',
+            message: warnMsg,
+            details: {
+              chunkCount: chunks.length,
+              maxChunks: DEFAULT_CONFIG.maxChunksPerFile,
+            },
+          });
+
+          if (progress) {
+            progress.log(`⏭️  Skipping ${displayPath}: ${warnMsg}`);
+          } else {
+            console.log(`⏭️  Skipping ${displayPath}: ${warnMsg}`);
+          }
+
+          skippedFiles++;
+          logger.skip(f, warnMsg);
+          progress?.updateFile(f, 0);
+          continue;
+        }
 
         // Warn user about large files (hybrid approach)
         const LARGE_FILE_THRESHOLD = 1000;
@@ -414,10 +485,11 @@ export async function processDirectory(
         progress?.updateFile(f, chunks.length);
       }
     } catch (e) {
+      const displayPath = toRelativePath(f, repo.path);
       // Detailed error message for console
       let errMsg: string;
       if (e instanceof Error) {
-        errMsg = `Error processing ${f}:\n  ${e.name}: ${e.message}`;
+        errMsg = `Error processing ${displayPath}:\n  ${e.name}: ${e.message}`;
         if (e.stack) {
           // Show first line of stack trace for context
           const stackLine = e.stack.split('\n')[1]?.trim();
@@ -426,7 +498,7 @@ export async function processDirectory(
           }
         }
       } else {
-        errMsg = `Error processing ${f}: ${String(e)}`;
+        errMsg = `Error processing ${displayPath}: ${String(e)}`;
       }
 
       // Log to error file

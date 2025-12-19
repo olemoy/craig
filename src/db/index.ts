@@ -56,6 +56,7 @@ export {
   insertFiles,
   getFile,
   getFilesByRepository,
+  getFileMetadataByRepository,
   getFilesByType,
   getFileByPath,
   updateFile,

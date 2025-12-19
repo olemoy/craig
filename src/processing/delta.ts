@@ -2,10 +2,16 @@
  * Delta ingestion - only process changed files
  */
 
+// Random color selection for spinners
+function randomColor(): 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray' {
+  const colors = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'gray'] as const;
+  return colors[Math.floor(Math.random() * colors.length)];
+}
+
 import fs from 'fs';
 import path from 'path';
 import { getClient } from '../db/client.js';
-import { getFilesByRepository, deleteFile } from '../db/files.js';
+import { getFileMetadataByRepository, deleteFile } from '../db/files.js';
 import { deleteChunksByFile } from '../db/chunks.js';
 import type { Repository, RepositoryId, File } from '../db/types.js';
 import { sha256Hex } from './hasher.js';
@@ -80,7 +86,8 @@ export async function analyzeDelta(
   unchanged: string[];
 }> {
   // Get all files currently in database for this repository
-  const dbFiles = await getFilesByRepository(repo.id);
+  // Use metadata-only query for better memory efficiency with large repos
+  const dbFiles = await getFileMetadataByRepository(repo.id);
   const dbFileMap = new Map(dbFiles.map(f => [f.file_path, f]));
   const discoveredSet = new Set(discoveredFiles);
 
@@ -88,8 +95,26 @@ export async function analyzeDelta(
   const toUpdate: string[] = [];
   const unchanged: string[] = [];
 
-  // Check each discovered file
-  for (const filePath of discoveredFiles) {
+  // Start spinner for delta analysis
+  let spinner: any = null;
+  try {
+    const { default: yoctoSpinner } = await import('yocto-spinner');
+    const { dots12 } = await import('cli-spinners');
+    spinner = yoctoSpinner({
+      text: `Analyzing changes in ${discoveredFiles.length} files...`,
+      indent: 2,
+      spinner: dots12,
+      color: randomColor()
+    });
+    spinner.start();
+  } catch {
+    // Fallback if spinner not available
+    console.log(`  Analyzing changes in ${discoveredFiles.length} files...`);
+  }
+
+  try {
+    // Check each discovered file
+    for (const filePath of discoveredFiles) {
     const dbFile = dbFileMap.get(filePath);
 
     if (!dbFile) {
@@ -126,12 +151,25 @@ export async function analyzeDelta(
         }
       }
     }
+    }
+
+    // Find files to delete (in DB but not discovered)
+    const toDelete = dbFiles.filter(f => !discoveredSet.has(f.file_path));
+
+    // Stop spinner with success
+    if (spinner) {
+      const summary = `📄 ${unchanged.length} unchanged, ✏️  ${toUpdate.length} modified, ➕ ${toAdd.length} new, ➖ ${toDelete.length} deleted`;
+      spinner.success(summary);
+    }
+
+    return { toAdd, toUpdate, toDelete, unchanged };
+  } catch (error) {
+    // Stop spinner with error
+    if (spinner) {
+      spinner.error('Delta analysis failed');
+    }
+    throw error;
   }
-
-  // Find files to delete (in DB but not discovered)
-  const toDelete = dbFiles.filter(f => !discoveredSet.has(f.file_path));
-
-  return { toAdd, toUpdate, toDelete, unchanged };
 }
 
 /**

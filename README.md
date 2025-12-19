@@ -77,6 +77,9 @@ bun src/cli/index.ts list
 
 # Get statistics
 bun src/cli/index.ts stats my-project
+
+# Check database health
+bun src/cli/index.ts health check
 ```
 
 ## How CRAIG Chunks Code
@@ -211,12 +214,24 @@ grep "SESSION END" logs/my-project-ingestion-2025-12-18.log
 
 ### Resume Interrupted Ingestion
 
-If ingestion is interrupted, resume where you left off:
+Resume incomplete ingestion, skipping already-processed files:
 ```bash
 bun src/cli/index.ts ingest /path/to/repo --resume
 ```
 
-Skips files that already have embeddings and continues processing incomplete files.
+### Database Health
+
+Check and repair database integrity:
+```bash
+# Check for issues
+bun src/cli/index.ts health check
+
+# Repair orphaned records
+bun src/cli/index.ts health repair
+
+# Validate specific repository
+bun src/cli/index.ts health validate my-project
+```
 
 ### Incremental Updates
 

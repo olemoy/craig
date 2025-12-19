@@ -58,6 +58,12 @@ const CODE_PATTERNS: Record<string, RegExp[]> = {
     /^namespace\s+\w+/,
     /^template\s*</,
   ],
+  '.sql': [
+    /^CREATE\s+(OR\s+REPLACE\s+)?(FUNCTION|PROCEDURE|PACKAGE|TRIGGER|VIEW|TABLE|INDEX)/i,
+    /^ALTER\s+(TABLE|INDEX|VIEW|PROCEDURE|FUNCTION)/i,
+    /^BEGIN/,
+    /^DECLARE/i,
+  ],
 };
 
 // Symbol extraction patterns - capture symbol names
@@ -111,6 +117,14 @@ const SYMBOL_PATTERNS: Record<string, { pattern: RegExp; type: string }[]> = {
     { pattern: /^struct\s+(\w+)/, type: 'struct' },
     { pattern: /^namespace\s+(\w+)/, type: 'namespace' },
   ],
+  '.sql': [
+    { pattern: /^CREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE)\s+(\w+)/i, type: 'function' },
+    { pattern: /^CREATE\s+(?:OR\s+REPLACE\s+)?PACKAGE\s+(?:BODY\s+)?(\w+)/i, type: 'package' },
+    { pattern: /^CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+(\w+)/i, type: 'trigger' },
+    { pattern: /^CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)/i, type: 'view' },
+    { pattern: /^CREATE\s+TABLE\s+(\w+)/i, type: 'table' },
+    { pattern: /^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(\w+)/i, type: 'index' },
+  ],
 };
 
 interface SymbolInfo {
@@ -137,7 +151,7 @@ function detectChunkType(firstLine: string, language: string | null): string {
 
   const line = firstLine.toLowerCase();
 
-  if (line.includes('function') || line.includes('def ') || line.includes('fn ') || line.includes('fun ')) {
+  if (line.includes('function') || line.includes('def ') || line.includes('fn ') || line.includes('fun ') || line.includes('procedure')) {
     return 'function';
   }
   if (line.includes('class ')) return 'class';
@@ -148,6 +162,10 @@ function detectChunkType(firstLine: string, language: string | null): string {
   if (line.includes('const ') || line.includes('let ') || line.includes('var ')) {
     return 'variable';
   }
+  if (line.includes('create table')) return 'table';
+  if (line.includes('create view')) return 'view';
+  if (line.includes('trigger')) return 'trigger';
+  if (line.includes('package')) return 'package';
 
   return 'code';
 }
@@ -396,7 +414,7 @@ export function chunkText(
       codeChunks = chunkByLines(text, maxTokens);
     }
   } else {
-    codeChunks = chunkCode(text, opts.language, maxTokens);
+    codeChunks = chunkCode(text, opts.language ?? null, maxTokens);
   }
 
   // Convert to ChunkRecord format with overlap

@@ -9,7 +9,7 @@ import { resolveProjectPath } from '../utils/paths.js';
 export interface ProcessingError {
   timestamp: Date;
   filePath: string;
-  errorType: 'file_too_large' | 'processing_error' | 'unsupported_format' | 'unknown';
+  errorType: 'file_too_large' | 'processing_error' | 'unsupported_format' | 'unknown' | 'estimated_too_many_chunks' | 'too_many_chunks';
   message: string;
   details?: any;
 }

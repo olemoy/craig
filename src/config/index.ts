@@ -35,6 +35,8 @@ export interface ProcessingConfig {
   tokenTarget: number;
   overlapTokens: number;
   concurrency: number;
+  maxChunksPerFile?: number;
+  skipLargeFiles?: boolean;
 }
 
 export interface Config {
@@ -130,5 +132,7 @@ export function getProcessingConfig(): ProcessingConfig {
     tokenTarget: config.processing?.tokenTarget ?? 500,
     overlapTokens: config.processing?.overlapTokens ?? 64,
     concurrency: config.processing?.concurrency ?? 4,
+    maxChunksPerFile: config.processing?.maxChunksPerFile ?? 100, // 100 chunks default
+    skipLargeFiles: config.processing?.skipLargeFiles ?? true, // Skip by default
   };
 }

@@ -1,9 +1,13 @@
 /**
  * Progress reporter for CLI commands
- * Provides a fixed progress bar with real-time stats
+ * Uses yocto-spinner for clean, animated progress updates
  */
 
-import cliProgress from "cli-progress";
+// Random color selection for spinners
+function randomColor(): 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray' {
+  const colors = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'gray'] as const;
+  return colors[Math.floor(Math.random() * colors.length)];
+}
 
 export interface ProgressStats {
   totalFiles: number;
@@ -61,14 +65,9 @@ function shortenFilename(filePath: string, maxLength: number = 40): string {
   return `${start}...`;
 }
 
-// Progress bar mode - fixed display with stats
+// Progress reporter using yocto-spinner for cleaner output
 function createBarReporter(): ProgressReporter {
-  let bar: cliProgress.SingleBar | null = null;
-  let spinnerInterval: NodeJS.Timeout | null = null;
-  let spinnerFrameIndex = 0;
-  let lastSpinnerFrameTime = 0;
-  const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-  const SPINNER_INTERVAL = 100; // ms between frame changes
+  let spinner: any = null;
   let stats: ProgressStats = {
     totalFiles: 0,
     processedFiles: 0,
@@ -80,46 +79,20 @@ function createBarReporter(): ProgressReporter {
     processingRates: [],
   };
 
-  const multibar = new cliProgress.MultiBar(
-    {
-      clearOnComplete: false,
-      hideCursor: true,
-      format:
-        " {spinner} [ {bar} ] {percentage}% | {value}/{total} files | ⏱ {elapsed} | ETA: {eta_formatted} | {filename}",
-      barCompleteChar: "\u2588",
-      barIncompleteChar: "\u2591",
-      etaBuffer: 20, // Increase buffer for more stable ETA (default 10)
-    },
-    cliProgress.Presets.shades_classic,
-  );
-
-  // Update spinner frame and progress bar
-  // Uses yocto-spinner approach: only rotate frame if enough time elapsed
-  function updateSpinner() {
-    if (!bar) return;
+  function updateSpinnerText() {
+    if (!spinner) return;
 
     const now = Date.now();
-
-    // Only advance frame if enough time has passed (like yocto-spinner)
-    if (lastSpinnerFrameTime === 0 || now - lastSpinnerFrameTime >= SPINNER_INTERVAL) {
-      spinnerFrameIndex = (spinnerFrameIndex + 1) % spinnerFrames.length;
-      lastSpinnerFrameTime = now;
-    }
-
-    // Update bar with current state (whatever file is being processed now)
     const elapsed = formatDuration(now - stats.startTime);
+    const percentage = Math.round((stats.processedFiles / stats.totalFiles) * 100);
     const filename = shortenFilename(stats.currentFile || "");
-    const spinner = spinnerFrames[spinnerFrameIndex];
 
-    bar.update(stats.processedFiles, {
-      elapsed,
-      filename,
-      spinner,
-    });
+    spinner.color = randomColor();
+    spinner.text = `Ingesting files: ${percentage}% | ${stats.processedFiles}/${stats.totalFiles} | ⏱ ${elapsed} | ${filename}`;
   }
 
   return {
-    start(totalFiles: number) {
+    async start(totalFiles: number) {
       stats.totalFiles = totalFiles;
       stats.processedFiles = 0;
       stats.totalChunks = 0;
@@ -129,16 +102,20 @@ function createBarReporter(): ProgressReporter {
       stats.lastUpdateTime = Date.now();
       stats.processingRates = [];
 
-      bar = multibar.create(totalFiles, 0, {
-        elapsed: "0s",
-        filename: "",
-        spinner: spinnerFrames[0],
-      });
-
-      // Start spinner animation (100ms tick - only update source)
-      spinnerInterval = setInterval(() => {
-        updateSpinner();
-      }, 100);
+      // Import and start spinner
+      try {
+        const { default: yoctoSpinner } = await import('yocto-spinner');
+        const { dots12 } = await import('cli-spinners');
+        spinner = yoctoSpinner({
+          text: `Ingesting files: 0% | 0/${totalFiles} | ⏱ 0s`,
+          indent: 2,
+          spinner: dots12,
+          color: randomColor()
+        });
+        spinner.start();
+      } catch {
+        console.log(`  Processing ${totalFiles} files...`);
+      }
     },
 
     updateFile(filePath: string, chunks: number) {
@@ -150,33 +127,28 @@ function createBarReporter(): ProgressReporter {
       stats.totalEmbeddings += chunks;
       stats.currentFile = filePath;
 
-      // Calculate rate for smoothed ETA
+      // Update spinner text (throttled to every 100ms)
       const timeSinceLastUpdate = now - stats.lastUpdateTime;
-      if (timeSinceLastUpdate > 0) {
-        const rate = 1000 / timeSinceLastUpdate; // files per second
-        stats.processingRates.push(rate);
-
-        // Keep sliding window of last 20 rates
-        if (stats.processingRates.length > 20) {
-          stats.processingRates.shift();
-        }
+      if (timeSinceLastUpdate >= 100) {
+        stats.lastUpdateTime = now;
+        updateSpinnerText();
       }
-      stats.lastUpdateTime = now;
-
-      // Update display (spinner will only rotate frame if >= 100ms elapsed)
-      updateSpinner();
     },
 
     updatePhase(phase: ProgressStats["phase"], message?: string) {
       stats.phase = phase;
-      // Phase changes don't update the bar, they just log
     },
 
     warnLargeFile(fileName: string, estimatedChunks: number) {
       const shortName = fileName.split("/").pop() || fileName;
-      multibar.log(
-        `⚠ Large file detected: ${shortName} (~${estimatedChunks.toLocaleString()} chunks, may take several minutes)\n`,
-      );
+      if (spinner) {
+        spinner.stop();
+      }
+      console.log(`⚠ Large file detected: ${shortName} (~${estimatedChunks.toLocaleString()} chunks, may take several minutes)`);
+      if (spinner) {
+        spinner.start();
+        updateSpinnerText();
+      }
     },
 
     updateChunkProgress(
@@ -184,55 +156,43 @@ function createBarReporter(): ProgressReporter {
       processedChunks: number,
       totalChunks: number,
     ) {
-      // Don't update bar during chunk processing (keeps display stable)
+      // Don't update spinner during chunk processing (keeps display stable)
     },
 
     finish() {
-      // Clear the spinner interval
-      if (spinnerInterval) {
-        clearInterval(spinnerInterval);
-        spinnerInterval = null;
-      }
-
-      // Final update to show completion
       const elapsed = formatDuration(Date.now() - stats.startTime);
-      if (bar) {
-        bar.update(stats.totalFiles, {
-          elapsed,
-          filename: "",
-          spinner: "✓", // Show checkmark when complete
-        });
+
+      if (spinner) {
+        spinner.success(`Completed: ${stats.totalFiles} files | ${stats.totalChunks} chunks | ⏱ ${elapsed}`);
+      } else {
+        console.log(`\n✓ Processing complete`);
+        console.log(`  Files processed: ${stats.processedFiles}/${stats.totalFiles}`);
+        console.log(`  Total chunks: ${stats.totalChunks}`);
+        console.log(`  Total embeddings: ${stats.totalEmbeddings}`);
+        console.log(`  Duration: ${elapsed}`);
       }
-
-      multibar.stop();
-
-      // Print summary
-      console.log(`\n✓ Processing complete`);
-      console.log(
-        `  Files processed: ${stats.processedFiles}/${stats.totalFiles}`,
-      );
-      console.log(`  Total chunks: ${stats.totalChunks}`);
-      console.log(`  Total embeddings: ${stats.totalEmbeddings}`);
-      console.log(`  Duration: ${elapsed}`);
     },
 
     log(message: string) {
-      // In progress mode, only show important messages
-      if (
-        message.includes("✓") ||
-        message.includes("repository") ||
-        message.includes("Delta") ||
-        message.includes("File size") ||
-        message.includes("Processing") ||
-        message.includes("ℹ️") ||
-        message.includes("Tip:")
-      ) {
-        multibar.log(message + "\n");
+      if (spinner) {
+        spinner.stop();
+      }
+      console.log(message);
+      if (spinner) {
+        spinner.start();
+        updateSpinnerText();
       }
     },
 
     error(message: string) {
-      multibar.log("ERROR: " + message + "\n");
+      if (spinner) {
+        spinner.stop();
+      }
+      console.error("ERROR: " + message);
+      if (spinner) {
+        spinner.start();
+        updateSpinnerText();
+      }
     },
   };
 }

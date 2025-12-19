@@ -19,6 +19,12 @@ import {
   DatabaseErrorCode,
 } from './types.js';
 
+// Random color selection for spinners
+function randomColor(): 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray' {
+  const colors = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'gray'] as const;
+  return colors[Math.floor(Math.random() * colors.length)];
+}
+
 /**
  * Map database row to File type
  */
@@ -252,7 +258,139 @@ export async function getFile(id: FileId): Promise<File | null> {
 }
 
 /**
+ * Get file metadata (without content) for delta analysis
+ *
+ * Much more memory-efficient than getFilesByRepository for large repos.
+ * Excludes content, binary_metadata, and metadata fields.
+ *
+ * @param repositoryId - Repository ID
+ * @returns Array of files with only metadata fields
+ * @throws DatabaseError if query fails
+ */
+export async function getFileMetadataByRepository(
+  repositoryId: RepositoryId,
+  options?: { showProgress?: boolean }
+): Promise<File[]> {
+  try {
+    const client = await getClient();
+    const showProgress = options?.showProgress ?? true;
+
+    // Get count first
+    const countResult = await client.query(
+      'SELECT COUNT(*) as count FROM files WHERE repository_id = $1',
+      [repositoryId]
+    );
+    const totalFiles = parseInt((countResult.rows[0] as any).count, 10);
+
+    const BATCH_SIZE = 1000; // Larger batch size since we're not loading content
+
+    if (totalFiles <= BATCH_SIZE) {
+      // Small repo - single query
+      const result = await client.query(
+        `SELECT id, repository_id, file_path, file_type, content_hash,
+                size_bytes, last_modified, language
+         FROM files
+         WHERE repository_id = $1
+         ORDER BY file_path`,
+        [repositoryId]
+      );
+      return result.rows.map(row => ({
+        ...mapToFile(row),
+        content: null,
+        binary_metadata: null,
+        metadata: null,
+      }));
+    }
+
+    // Large repo - paginate with progress indicator
+    let spinner: any = null;
+    if (showProgress) {
+      // Dynamic import to avoid issues if not available
+      try {
+        const { default: yoctoSpinner } = await import('yocto-spinner');
+        const { dots12 } = await import('cli-spinners');
+        spinner = yoctoSpinner({
+          text: `Loading file metadata (0/${totalFiles})...`,
+          indent: 2,
+          spinner: dots12,
+          color: randomColor()
+        });
+        spinner.start();
+      } catch {
+        // Fallback if spinner not available
+        console.log(`  Loading ${totalFiles} files...`);
+      }
+    }
+
+    const allFiles: File[] = [];
+    let offset = 0;
+
+    try {
+      while (offset < totalFiles) {
+        const batchResult = await client.query(
+          `SELECT id, repository_id, file_path, file_type, content_hash,
+                  size_bytes, last_modified, language
+           FROM files
+           WHERE repository_id = $1
+           ORDER BY file_path
+           LIMIT $2 OFFSET $3`,
+          [repositoryId, BATCH_SIZE, offset]
+        );
+
+        const batchFiles = batchResult.rows.map(row => ({
+          ...mapToFile(row),
+          content: null,
+          binary_metadata: null,
+          metadata: null,
+        }));
+
+        allFiles.push(...batchFiles);
+        offset += BATCH_SIZE;
+
+        // Update spinner text and color
+        if (spinner) {
+          const loaded = Math.min(offset, totalFiles);
+          spinner.color = randomColor();
+          spinner.text = `Loading file metadata (${loaded}/${totalFiles})...`;
+        }
+      }
+
+      if (spinner) {
+        spinner.success(`Loaded ${totalFiles} files`);
+      }
+
+      return allFiles;
+    } catch (error) {
+      if (spinner) {
+        spinner.error('Failed to load files');
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('getFileMetadataByRepository failed:');
+    console.error('  Repository ID:', repositoryId);
+    console.error('  Error:', error);
+    if (error instanceof Error) {
+      console.error('  Error message:', error.message);
+      console.error('  Error stack:', error.stack);
+    }
+
+    throw new DatabaseError(
+      DatabaseErrorCode.QUERY_FAILED,
+      `Failed to get file metadata for repository ${repositoryId}: ${error instanceof Error ? error.message : String(error)}`,
+      error
+    );
+  }
+}
+
+/**
  * Get all files for a repository
+ *
+ * Uses pagination to handle large repositories that might exhaust WASM memory.
+ * PGLite can hit "Out of bounds memory access" errors with large result sets.
+ *
+ * WARNING: For large repositories, this loads all file content into memory.
+ * Consider using getFileMetadataByRepository() if you only need metadata.
  *
  * @param repositoryId - Repository ID
  * @returns Array of files in the repository
@@ -264,16 +402,58 @@ export async function getFilesByRepository(
   try {
     const client = await getClient();
 
-    const result = await client.query(
-      'SELECT * FROM files WHERE repository_id = $1 ORDER BY file_path',
+    // First, get the count to determine if we need pagination
+    const countResult = await client.query(
+      'SELECT COUNT(*) as count FROM files WHERE repository_id = $1',
       [repositoryId]
     );
+    const totalFiles = parseInt((countResult.rows[0] as any).count, 10);
 
-    return result.rows.map(mapToFile);
+    // If fewer than 500 files, fetch all at once
+    const BATCH_SIZE = 500;
+    if (totalFiles <= BATCH_SIZE) {
+      const result = await client.query(
+        'SELECT * FROM files WHERE repository_id = $1 ORDER BY file_path',
+        [repositoryId]
+      );
+      return result.rows.map(mapToFile);
+    }
+
+    // For large repositories, use pagination to avoid WASM memory issues
+    console.log(`  Large repository detected (${totalFiles} files), using pagination...`);
+    const allFiles: File[] = [];
+    let offset = 0;
+
+    while (offset < totalFiles) {
+      const batchResult = await client.query(
+        'SELECT * FROM files WHERE repository_id = $1 ORDER BY file_path LIMIT $2 OFFSET $3',
+        [repositoryId, BATCH_SIZE, offset]
+      );
+
+      const batchFiles = batchResult.rows.map(mapToFile);
+      allFiles.push(...batchFiles);
+      offset += BATCH_SIZE;
+
+      // Log progress for large fetches
+      if (totalFiles > BATCH_SIZE) {
+        console.log(`  Loaded ${Math.min(offset, totalFiles)}/${totalFiles} files...`);
+      }
+    }
+
+    return allFiles;
   } catch (error) {
+    // Log the actual error for debugging
+    console.error('getFilesByRepository failed:');
+    console.error('  Repository ID:', repositoryId);
+    console.error('  Error:', error);
+    if (error instanceof Error) {
+      console.error('  Error message:', error.message);
+      console.error('  Error stack:', error.stack);
+    }
+
     throw new DatabaseError(
       DatabaseErrorCode.QUERY_FAILED,
-      `Failed to get files for repository ${repositoryId}`,
+      `Failed to get files for repository ${repositoryId}: ${error instanceof Error ? error.message : String(error)}`,
       error
     );
   }
