@@ -68,6 +68,7 @@ function shortenFilename(filePath: string, maxLength: number = 40): string {
 // Progress reporter using yocto-spinner for cleaner output
 function createBarReporter(): ProgressReporter {
   let spinner: any = null;
+  let isFinished: boolean = false;
   let stats: ProgressStats = {
     totalFiles: 0,
     processedFiles: 0,
@@ -161,6 +162,7 @@ function createBarReporter(): ProgressReporter {
 
     finish() {
       const elapsed = formatDuration(Date.now() - stats.startTime);
+      isFinished = true;
 
       if (spinner) {
         spinner.success(`Completed: ${stats.totalFiles} files | ${stats.totalChunks} chunks | ⏱ ${elapsed}`);
@@ -174,22 +176,22 @@ function createBarReporter(): ProgressReporter {
     },
 
     log(message: string) {
-      if (spinner) {
+      if (spinner && !isFinished) {
         spinner.stop();
       }
       console.log(message);
-      if (spinner) {
+      if (spinner && !isFinished) {
         spinner.start();
         updateSpinnerText();
       }
     },
 
     error(message: string) {
-      if (spinner) {
+      if (spinner && !isFinished) {
         spinner.stop();
       }
       console.error("ERROR: " + message);
-      if (spinner) {
+      if (spinner && !isFinished) {
         spinner.start();
         updateSpinnerText();
       }
