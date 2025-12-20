@@ -3,7 +3,7 @@
  * Tests all 9 MCP tool handlers
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import {
   createTestRepositoryWithData,
@@ -24,7 +24,7 @@ let testRepoId: number;
 let testRepoName: string;
 
 describe('MCP Tools - Setup', () => {
-  beforeEach(async () => {
+  beforeAll(async () => {
     resetClient();
     testDb = await initializeClient({
       dataDir: 'memory://',
@@ -36,7 +36,7 @@ describe('MCP Tools - Setup', () => {
     testRepoName = 'test-repo';
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await closeClient();
     resetClient();
   });
