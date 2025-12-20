@@ -44,7 +44,21 @@ export async function getPipeline() {
       if (fs.existsSync(localModelDir)) {
         console.error(`Using local model at ${localModelDir}`);
         const transformers = await import('@huggingface/transformers');
-        pipelineInstance = await transformers.pipeline('feature-extraction', localModelDir);
+        try {
+          pipelineInstance = await transformers.pipeline('feature-extraction', localModelDir);
+        } catch (pipelineError) {
+          // Clear the initializing flag so we can retry
+          initializing = null;
+          const errorMsg = pipelineError instanceof Error ? pipelineError.message : String(pipelineError);
+          throw new Error(
+            `Failed to load local model from ${localModelDir}\n` +
+            `Error: ${errorMsg}\n\n` +
+            `Possible solutions:\n` +
+            `  1. Delete the corrupted local model: rm -rf "${localModelDir}"\n` +
+            `  2. Re-download the model by running the ingest command again\n` +
+            `  3. Check that the model files are not corrupted`
+          );
+        }
         initializing = null;
         return pipelineInstance;
       }
@@ -54,7 +68,23 @@ export async function getPipeline() {
       console.error(`Local model not found. Downloading ${modelConfig.modelId} into ${modelsDir} (this may take a while)`);
       process.env.TRANSFORMERS_CACHE = process.env.TRANSFORMERS_CACHE ?? modelsDir;
       const transformers = await import('@huggingface/transformers');
-      pipelineInstance = await transformers.pipeline('feature-extraction', modelConfig.modelId);
+      try {
+        pipelineInstance = await transformers.pipeline('feature-extraction', modelConfig.modelId);
+      } catch (pipelineError) {
+        // Clear the initializing flag so we can retry
+        initializing = null;
+        const errorMsg = pipelineError instanceof Error ? pipelineError.message : String(pipelineError);
+        throw new Error(
+          `Failed to download and load model ${modelConfig.modelId}\n` +
+          `Error: ${errorMsg}\n\n` +
+          `Possible solutions:\n` +
+          `  1. Check your internet connection\n` +
+          `  2. Verify the model ID is correct in config.json: "${modelConfig.modelId}"\n` +
+          `  3. Try a different model (e.g., "Xenova/all-MiniLM-L6-v2")\n` +
+          `  4. Check if you can access huggingface.co in your browser\n` +
+          `  5. Check disk space in ${modelsDir}`
+        );
+      }
 
     // After pipeline is ready, try to detect where transformers cached the model and copy it to project models dir for reproducibility
     try {
@@ -75,12 +105,37 @@ export async function getPipeline() {
         }
       }
     } catch (e) {
-      // Non-fatal
-      console.error('Warning: Could not copy cached model to project models directory:', e);
+      // Non-fatal - model is already loaded and working
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.error('⚠️  Warning: Could not copy cached model to project models directory');
+      console.error(`   Error: ${errorMsg}`);
+      console.error('   This is not critical - the model is loaded and working.');
+      console.error('   However, future runs may need to re-download the model.');
     }
 
       initializing = null;
       return pipelineInstance;
+    } catch (error) {
+      // Clear the initializing flag so we can retry
+      initializing = null;
+
+      // Re-throw if it's already our formatted error
+      if (error instanceof Error && error.message.includes('Possible solutions:')) {
+        throw error;
+      }
+
+      // Otherwise, wrap unexpected errors with helpful context
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Unexpected error during model pipeline initialization\n` +
+        `Error: ${errorMsg}\n\n` +
+        `Possible solutions:\n` +
+        `  1. Check the error message above for specific details\n` +
+        `  2. Ensure @huggingface/transformers is properly installed: bun install\n` +
+        `  3. Check your config.json for valid embedding configuration\n` +
+        `  4. Try deleting the models directory and re-running: rm -rf models/\n` +
+        `  5. Report this issue if it persists`
+      );
     } finally {
       // Restore original console.error
       if (isMcpMode) {

@@ -84,6 +84,7 @@ export async function analyzeDelta(
   toUpdate: string[];
   toDelete: File[];
   unchanged: string[];
+  failed: Array<{ filePath: string; error: string }>;
 }> {
   // Get all files currently in database for this repository
   // Use metadata-only query for better memory efficiency with large repos
@@ -94,6 +95,7 @@ export async function analyzeDelta(
   const toAdd: string[] = [];
   const toUpdate: string[] = [];
   const unchanged: string[] = [];
+  const failed: Array<{ filePath: string; error: string }> = [];
 
   // Start spinner for delta analysis
   let spinner: any = null;
@@ -115,42 +117,50 @@ export async function analyzeDelta(
   try {
     // Check each discovered file
     for (const filePath of discoveredFiles) {
-    const dbFile = dbFileMap.get(filePath);
+      try {
+        const dbFile = dbFileMap.get(filePath);
 
-    if (!dbFile) {
-      // New file
-      toAdd.push(filePath);
-    } else {
-      // File exists - check if modified
-      const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(repo.path, filePath);
-      const stat = await fs.promises.stat(absolutePath);
-
-      // Fast path: if size changed, definitely modified
-      if (stat.size !== dbFile.size_bytes) {
-        toUpdate.push(filePath);
-      } else {
-        // Size is same - hash content to be sure (handles text changes with same byte count)
-        let currentHash: string;
-
-        if (dbFile.file_type === 'text' || dbFile.file_type === 'code') {
-          // For text/code files, normalize text before hashing (same as during ingestion)
-          const txt = await readTextFile(absolutePath);
-          currentHash = sha256Hex(txt);
+        if (!dbFile) {
+          // New file
+          toAdd.push(filePath);
         } else {
-          // For binary files, hash raw buffer as binary string
-          const fileContent = await fs.promises.readFile(absolutePath);
-          currentHash = sha256Hex(fileContent.toString('binary'));
-        }
+          // File exists - check if modified
+          const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(repo.path, filePath);
+          const stat = await fs.promises.stat(absolutePath);
 
-        if (currentHash !== dbFile.content_hash) {
-          // Content has actually changed
-          toUpdate.push(filePath);
-        } else {
-          // Content unchanged
-          unchanged.push(filePath);
+          // Fast path: if size changed, definitely modified
+          if (stat.size !== dbFile.size_bytes) {
+            toUpdate.push(filePath);
+          } else {
+            // Size is same - hash content to be sure (handles text changes with same byte count)
+            let currentHash: string;
+
+            if (dbFile.file_type === 'text' || dbFile.file_type === 'code') {
+              // For text/code files, normalize text before hashing (same as during ingestion)
+              const txt = await readTextFile(absolutePath);
+              currentHash = sha256Hex(txt);
+            } else {
+              // For binary files, hash raw buffer as binary string
+              const fileContent = await fs.promises.readFile(absolutePath);
+              currentHash = sha256Hex(fileContent.toString('binary'));
+            }
+
+            if (currentHash !== dbFile.content_hash) {
+              // Content has actually changed
+              toUpdate.push(filePath);
+            } else {
+              // Content unchanged
+              unchanged.push(filePath);
+            }
+          }
         }
+      } catch (fileError) {
+        // Track individual file failures but continue processing other files
+        const errorMessage = fileError instanceof Error ? fileError.message : String(fileError);
+        failed.push({ filePath, error: errorMessage });
+        console.error(`⚠️  Warning: Failed to analyze file during delta analysis: ${filePath}`);
+        console.error(`   Error: ${errorMessage}`);
       }
-    }
     }
 
     // Find files to delete (in DB but not discovered)
@@ -158,11 +168,20 @@ export async function analyzeDelta(
 
     // Stop spinner with success
     if (spinner) {
-      const summary = `📄 ${unchanged.length} unchanged, ✏️  ${toUpdate.length} modified, ➕ ${toAdd.length} new, ➖ ${toDelete.length} deleted`;
+      const summary = `📄 ${unchanged.length} unchanged, ✏️  ${toUpdate.length} modified, ➕ ${toAdd.length} new, ➖ ${toDelete.length} deleted${failed.length > 0 ? `, ⚠️  ${failed.length} failed` : ''}`;
       spinner.success(summary);
     }
 
-    return { toAdd, toUpdate, toDelete, unchanged };
+    // Report failed files if any
+    if (failed.length > 0) {
+      console.error(`\n⚠️  Warning: ${failed.length} file(s) could not be analyzed during delta analysis:`);
+      for (const { filePath, error } of failed) {
+        console.error(`   - ${filePath}: ${error}`);
+      }
+      console.error(`These files will be skipped. Fix the issues and run again to process them.\n`);
+    }
+
+    return { toAdd, toUpdate, toDelete, unchanged, failed };
   } catch (error) {
     // Stop spinner with error
     if (spinner) {

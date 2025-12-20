@@ -18,6 +18,10 @@ export interface ProcessingError {
 // Current error log file path (set by initializeErrorLogger)
 let currentErrorLogPath: string | null = null;
 
+// Track log write failures
+let logWriteFailures = 0;
+let lastLogWriteError: Error | null = null;
+
 /**
  * Initialize error logger for a repository
  * Creates log file in logs/<repo-name>-errors-<date>.log
@@ -27,6 +31,10 @@ export function initializeErrorLogger(repositoryName: string): string {
   const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   const sanitizedName = repositoryName.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
   currentErrorLogPath = join(logsDir, `${sanitizedName}-errors-${date}.log`);
+
+  // Reset failure tracking for new logger
+  logWriteFailures = 0;
+  lastLogWriteError = null;
 
   // Ensure logs directory exists
   if (!fs.existsSync(logsDir)) {
@@ -66,9 +74,16 @@ export async function logProcessingError(error: ProcessingError): Promise<void> 
   try {
     await fs.promises.appendFile(logFilePath, logLine, 'utf-8');
   } catch (e) {
-    // If we can't write to the log file, output to stderr
-    console.error(`Failed to write to error log: ${e}`);
-    console.error(`Original error: ${JSON.stringify(logEntry)}`);
+    // Track this failure
+    logWriteFailures++;
+    lastLogWriteError = e instanceof Error ? e : new Error(String(e));
+
+    // Output to stderr as fallback - make it very visible
+    console.error('⚠️  WARNING: Failed to write to error log file!');
+    console.error(`   Log file: ${logFilePath}`);
+    console.error(`   Failure reason: ${e}`);
+    console.error(`   Total log write failures so far: ${logWriteFailures}`);
+    console.error(`   Original error that couldn't be logged: ${JSON.stringify(logEntry)}`);
   }
 }
 
@@ -137,4 +152,30 @@ export async function clearErrorLog(): Promise<void> {
     }
     // File doesn't exist, nothing to clear
   }
+}
+
+/**
+ * Get the number of log write failures that have occurred
+ */
+export function getLogWriteFailureCount(): number {
+  return logWriteFailures;
+}
+
+/**
+ * Get the last log write error that occurred
+ */
+export function getLastLogWriteError(): Error | null {
+  return lastLogWriteError;
+}
+
+/**
+ * Check if error logging is degraded (has failures)
+ * Returns a warning message if degraded, null otherwise
+ */
+export function getLoggingHealthWarning(): string | null {
+  if (logWriteFailures === 0) {
+    return null;
+  }
+
+  return `⚠️  Warning: Error logging is degraded. ${logWriteFailures} log write failure(s) occurred. Errors were output to stderr instead. Last error: ${lastLogWriteError?.message}`;
 }

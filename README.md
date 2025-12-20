@@ -203,6 +203,7 @@ craig/
 │   ├── mcp/          # MCP server and tools
 │   └── config/       # Configuration
 ├── data/             # Database files (gitignored)
+├── logs/             # Ingestion logs (gitignored)
 └── models/           # Downloaded models (gitignored)
 ```
 
