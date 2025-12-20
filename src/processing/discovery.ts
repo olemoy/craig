@@ -2,6 +2,26 @@ import fs from 'fs';
 import path from 'path';
 import {FileRecord} from './types';
 
+/**
+ * Directories to ignore during file discovery
+ */
+const IGNORED_DIRECTORIES = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  'target',
+  'coverage',
+  '.next',
+  '.nuxt',
+  'out',
+  '__pycache__',
+  '.pytest_cache',
+  'venv',
+  '.venv',
+  'vendor',
+]);
+
 export async function discoverFiles(root: string): Promise<string[]> {
   const results: string[] = [];
   async function walk(dir: string) {
@@ -9,7 +29,8 @@ export async function discoverFiles(root: string): Promise<string[]> {
     for (const ent of entries) {
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
-        if (ent.name === '.git') continue;
+        // Skip ignored directories
+        if (IGNORED_DIRECTORIES.has(ent.name)) continue;
         await walk(full);
       } else if (ent.isFile()) {
         results.push(full);

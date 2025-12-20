@@ -174,6 +174,12 @@ export async function createTestRepositoryWithData(
   );
   const repositoryId = repoResult.rows[0].id;
 
+  // Build absolute paths (database stores absolute paths, not relative)
+  const repoPath = mockRepository.path.endsWith('/') ? mockRepository.path : mockRepository.path + '/';
+  const textFileAbsolutePath = repoPath + mockTextFile.file_path;
+  const codeFileAbsolutePath = repoPath + mockCodeFile.file_path;
+  const binaryFileAbsolutePath = repoPath + mockBinaryFile.file_path;
+
   // Insert text file
   const textFileResult = await client.query(
     `INSERT INTO files (repository_id, file_path, file_type, content, content_hash, size_bytes)
@@ -181,7 +187,7 @@ export async function createTestRepositoryWithData(
      RETURNING id`,
     [
       repositoryId,
-      mockTextFile.file_path,
+      textFileAbsolutePath,
       mockTextFile.file_type,
       mockTextFile.content,
       mockTextFile.content_hash,
@@ -197,7 +203,7 @@ export async function createTestRepositoryWithData(
      RETURNING id`,
     [
       repositoryId,
-      mockCodeFile.file_path,
+      codeFileAbsolutePath,
       mockCodeFile.file_type,
       mockCodeFile.content,
       mockCodeFile.content_hash,
@@ -215,7 +221,7 @@ export async function createTestRepositoryWithData(
      RETURNING id`,
     [
       repositoryId,
-      mockBinaryFile.file_path,
+      binaryFileAbsolutePath,
       mockBinaryFile.file_type,
       null, // CRITICAL: NULL for binary
       JSON.stringify(mockBinaryFile.binary_metadata),

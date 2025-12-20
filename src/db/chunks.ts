@@ -20,7 +20,7 @@ import {
 /**
  * Map database row to Chunk type
  */
-function mapToChunk(row: any): Chunk {
+function mapToChunk(row: ChunkRow): Chunk {
   return {
     id: row.id as ChunkId,
     file_id: row.file_id as FileId,

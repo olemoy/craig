@@ -30,6 +30,14 @@ function isOllamaConfig(config: OllamaConfig | Record<string, unknown>): config 
 }
 
 export async function embedText(text: string): Promise<number[]> {
+  // Input validation
+  if (text === undefined || text === null) {
+    throw new Error('Text input is required');
+  }
+  if (typeof text !== 'string') {
+    throw new Error('Text input must be a string');
+  }
+
   const provider = getEmbeddingProvider() as EmbeddingProvider;
 
   if (provider.provider === "ollama") {

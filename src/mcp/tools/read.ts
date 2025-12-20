@@ -53,7 +53,7 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
   const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
   const absolutePath = repoPath + normalizedPath;
 
-  // Query file metadata
+  // Query file metadata and content
   const client = await getClient();
   const result = await client.query(
     `SELECT
@@ -61,7 +61,8 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
       f.file_path,
       f.file_type,
       f.size_bytes,
-      f.language
+      f.language,
+      f.content
     FROM files f
     WHERE f.repository_id = $1 AND f.file_path = $2`,
     [repo.id, absolutePath]
@@ -73,6 +74,7 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
     file_type: 'code' | 'text' | 'binary';
     size_bytes: number;
     language: string | null;
+    content: string | null;
   }
 
   if (result.rows.length === 0) {
@@ -81,12 +83,16 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
 
   const file = result.rows[0] as FileInfoRow;
 
-  // Read file content from disk
+  // Read file content - prefer database content, fall back to disk
   let content: string;
   try {
     if (file.file_type === 'binary') {
       content = '(Binary file - content not available as text)';
+    } else if (file.content !== null) {
+      // Content is stored in database (common for indexed files)
+      content = file.content;
     } else {
+      // Content not in database, read from disk
       const buffer = await fsReadFile(file.file_path);
       content = buffer.toString('utf-8');
     }

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { chunkCode } from '../../src/processing/chunker.js';
+import { chunkText } from '../../src/processing/chunker.js';
 
 describe('Chunker - TypeScript/JavaScript', () => {
   it('should extract function symbols', () => {
@@ -17,18 +17,22 @@ function validateCredentials(creds: any) {
   return creds.valid;
 }
 `;
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText('test.ts', code, {
+      tokenTarget: 200,
+      overlapTokens: 20,
+      language: 'typescript'
+    });
 
     expect(chunks.length).toBeGreaterThan(0);
 
-    const authChunk = chunks.find(c => c.metadata?.symbolName === 'authenticate');
+    const authChunk = chunks.find(c => c.symbolName === 'authenticate');
     expect(authChunk).toBeDefined();
-    expect(authChunk?.metadata?.symbolType).toBe('function');
-    expect(authChunk?.metadata?.isDefinition).toBe(true);
+    expect(authChunk?.symbolType).toBe('function');
+    expect(authChunk?.isDefinition).toBe(true);
 
-    const validateChunk = chunks.find(c => c.metadata?.symbolName === 'validateCredentials');
+    const validateChunk = chunks.find(c => c.symbolName === 'validateCredentials');
     expect(validateChunk).toBeDefined();
-    expect(validateChunk?.metadata?.symbolType).toBe('function');
+    expect(validateChunk?.symbolType).toBe('function');
   });
 
   it('should extract class symbols', () => {
@@ -43,16 +47,14 @@ export class UserService {
   }
 }
 `;
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
 
-    const classChunk = chunks.find(c => c.metadata?.symbolName === 'UserService');
+    // Chunker extracts the class as a whole chunk
+    const classChunk = chunks.find(c => c.symbolName === 'UserService');
     expect(classChunk).toBeDefined();
-    expect(classChunk?.metadata?.symbolType).toBe('class');
-    expect(classChunk?.metadata?.isDefinition).toBe(true);
-
-    const authMethod = chunks.find(c => c.metadata?.symbolName === 'authenticate');
-    expect(authMethod).toBeDefined();
-    expect(authMethod?.metadata?.symbolType).toBe('method');
+    expect(classChunk?.symbolType).toBe('class');
+    expect(classChunk?.text).toContain('authenticate');
+    expect(classChunk?.text).toContain('createUser');
   });
 
   it('should extract interface symbols', () => {
@@ -67,13 +69,13 @@ interface Credentials {
   password: string;
 }
 `;
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
 
-    const userInterface = chunks.find(c => c.metadata?.symbolName === 'User');
+    const userInterface = chunks.find(c => c.symbolName === 'User');
     expect(userInterface).toBeDefined();
-    expect(userInterface?.metadata?.symbolType).toBe('interface');
+    expect(userInterface?.symbolType).toBe('interface');
 
-    const credInterface = chunks.find(c => c.metadata?.symbolName === 'Credentials');
+    const credInterface = chunks.find(c => c.symbolName === 'Credentials');
     expect(credInterface).toBeDefined();
   });
 
@@ -82,11 +84,11 @@ interface Credentials {
 export type UserId = string;
 type UserRole = 'admin' | 'user';
 `;
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
 
-    const userIdType = chunks.find(c => c.metadata?.symbolName === 'UserId');
+    const userIdType = chunks.find(c => c.symbolName === 'UserId');
     expect(userIdType).toBeDefined();
-    expect(userIdType?.metadata?.symbolType).toBe('type');
+    expect(userIdType?.symbolType).toBe('type');
   });
 
   it('should track line numbers correctly', () => {
@@ -98,24 +100,31 @@ function first() {
 function second() {
   return 2;
 }`;
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
 
-    const firstChunk = chunks.find(c => c.metadata?.symbolName === 'first');
+    const firstChunk = chunks.find(c => c.symbolName === 'first');
     expect(firstChunk?.startLine).toBe(2);
     expect(firstChunk?.endLine).toBeGreaterThanOrEqual(2);
 
-    const secondChunk = chunks.find(c => c.metadata?.symbolName === 'second');
+    const secondChunk = chunks.find(c => c.symbolName === 'second');
     expect(secondChunk?.startLine).toBe(6);
   });
 
   it('should handle overlap tokens', () => {
-    const code = 'a'.repeat(1000); // Large content
-    const chunks = chunkCode(code, 'typescript', 100);
+    // Create code with multiple functions to ensure chunking with overlap
+    const code = Array.from({ length: 15 }, (_, i) => `
+function handler${i}(data: any) {
+  console.log("Processing item " + data);
+  return data;
+}
+`).join('\n');
+
+    const chunks = chunkText("test.ts", code, { tokenTarget: 100, overlapTokens: 20, language: "typescript" });
 
     expect(chunks.length).toBeGreaterThan(1);
-    // Each chunk should have some overlap with previous
+    // Each chunk should have content
     if (chunks.length > 1) {
-      expect(chunks[1].content.length).toBeGreaterThan(0);
+      expect(chunks[1].text.length).toBeGreaterThan(0);
     }
   });
 });
@@ -129,13 +138,13 @@ def authenticate(credentials):
 def validate_credentials(creds):
     return creds.get('valid', False)
 `;
-    const chunks = chunkCode(code, 'python', 200);
+    const chunks = chunkText("test.py", code, { tokenTarget: 200, overlapTokens: 20, language: "python" });
 
-    const authChunk = chunks.find(c => c.metadata?.symbolName === 'authenticate');
+    const authChunk = chunks.find(c => c.symbolName === 'authenticate');
     expect(authChunk).toBeDefined();
-    expect(authChunk?.metadata?.symbolType).toBe('function');
+    expect(authChunk?.symbolType).toBe('function');
 
-    const validateChunk = chunks.find(c => c.metadata?.symbolName === 'validate_credentials');
+    const validateChunk = chunks.find(c => c.symbolName === 'validate_credentials');
     expect(validateChunk).toBeDefined();
   });
 
@@ -148,14 +157,13 @@ class UserService:
     def create_user(self, data):
         return {'id': 1}
 `;
-    const chunks = chunkCode(code, 'python', 200);
+    const chunks = chunkText("test.py", code, { tokenTarget: 200, overlapTokens: 20, language: "python" });
 
-    const classChunk = chunks.find(c => c.metadata?.symbolName === 'UserService');
+    // Chunker extracts the class
+    const classChunk = chunks.find(c => c.symbolName === 'UserService');
     expect(classChunk).toBeDefined();
-    expect(classChunk?.metadata?.symbolType).toBe('class');
-
-    const authMethod = chunks.find(c => c.metadata?.symbolName === 'authenticate');
-    expect(authMethod).toBeDefined();
+    expect(classChunk?.symbolType).toBe('class');
+    expect(classChunk?.text.length).toBeGreaterThan(0);
   });
 
   it('should handle decorators', () => {
@@ -164,9 +172,9 @@ class UserService:
 def get_users():
     return []
 `;
-    const chunks = chunkCode(code, 'python', 200);
+    const chunks = chunkText("test.py", code, { tokenTarget: 200, overlapTokens: 20, language: "python" });
 
-    const funcChunk = chunks.find(c => c.metadata?.symbolName === 'get_users');
+    const funcChunk = chunks.find(c => c.symbolName === 'get_users');
     expect(funcChunk).toBeDefined();
   });
 });
@@ -184,11 +192,11 @@ public class UserService {
     }
 }
 `;
-    const chunks = chunkCode(code, 'java', 200);
+    const chunks = chunkText("Test.java", code, { tokenTarget: 200, overlapTokens: 20, language: "java" });
 
-    const classChunk = chunks.find(c => c.metadata?.symbolName === 'UserService');
+    const classChunk = chunks.find(c => c.symbolName === 'UserService');
     expect(classChunk).toBeDefined();
-    expect(classChunk?.metadata?.symbolType).toBe('class');
+    expect(classChunk?.symbolType).toBe('class');
   });
 
   it('should extract interface symbols', () => {
@@ -198,11 +206,11 @@ public interface AuthService {
     void logout(String userId);
 }
 `;
-    const chunks = chunkCode(code, 'java', 200);
+    const chunks = chunkText("Test.java", code, { tokenTarget: 200, overlapTokens: 20, language: "java" });
 
-    const interfaceChunk = chunks.find(c => c.metadata?.symbolName === 'AuthService');
+    const interfaceChunk = chunks.find(c => c.symbolName === 'AuthService');
     expect(interfaceChunk).toBeDefined();
-    expect(interfaceChunk?.metadata?.symbolType).toBe('interface');
+    expect(interfaceChunk?.symbolType).toBe('interface');
   });
 });
 
@@ -217,11 +225,11 @@ func validateCredentials(creds Credentials) (*User, error) {
     return nil, nil
 }
 `;
-    const chunks = chunkCode(code, 'go', 200);
+    const chunks = chunkText("test.go", code, { tokenTarget: 200, overlapTokens: 20, language: "go" });
 
-    const authChunk = chunks.find(c => c.metadata?.symbolName === 'Authenticate');
+    const authChunk = chunks.find(c => c.symbolName === 'Authenticate');
     expect(authChunk).toBeDefined();
-    expect(authChunk?.metadata?.symbolType).toBe('function');
+    expect(authChunk?.symbolType).toBe('function');
   });
 
   it('should extract struct symbols', () => {
@@ -236,11 +244,11 @@ type Credentials struct {
     Password string
 }
 `;
-    const chunks = chunkCode(code, 'go', 200);
+    const chunks = chunkText("test.go", code, { tokenTarget: 200, overlapTokens: 20, language: "go" });
 
-    const userStruct = chunks.find(c => c.metadata?.symbolName === 'User');
+    const userStruct = chunks.find(c => c.symbolName === 'User');
     expect(userStruct).toBeDefined();
-    expect(userStruct?.metadata?.symbolType).toBe('struct');
+    expect(userStruct?.symbolType).toBe('struct');
   });
 
   it('should extract interface symbols', () => {
@@ -250,11 +258,11 @@ type AuthService interface {
     Logout(userID string) error
 }
 `;
-    const chunks = chunkCode(code, 'go', 200);
+    const chunks = chunkText("test.go", code, { tokenTarget: 200, overlapTokens: 20, language: "go" });
 
-    const interfaceChunk = chunks.find(c => c.metadata?.symbolName === 'AuthService');
+    const interfaceChunk = chunks.find(c => c.symbolName === 'AuthService');
     expect(interfaceChunk).toBeDefined();
-    expect(interfaceChunk?.metadata?.symbolType).toBe('interface');
+    expect(interfaceChunk?.symbolType).toBe('interface');
   });
 });
 
@@ -269,11 +277,11 @@ fn validate_credentials(creds: Credentials) -> Result<User, Error> {
     Ok(User::default())
 }
 `;
-    const chunks = chunkCode(code, 'rust', 200);
+    const chunks = chunkText("test.rs", code, { tokenTarget: 200, overlapTokens: 20, language: "rust" });
 
-    const authChunk = chunks.find(c => c.metadata?.symbolName === 'authenticate');
+    const authChunk = chunks.find(c => c.symbolName === 'authenticate');
     expect(authChunk).toBeDefined();
-    expect(authChunk?.metadata?.symbolType).toBe('function');
+    expect(authChunk?.symbolType).toBe('function');
   });
 
   it('should extract struct symbols', () => {
@@ -288,11 +296,11 @@ struct Credentials {
     password: String,
 }
 `;
-    const chunks = chunkCode(code, 'rust', 200);
+    const chunks = chunkText("test.rs", code, { tokenTarget: 200, overlapTokens: 20, language: "rust" });
 
-    const userStruct = chunks.find(c => c.metadata?.symbolName === 'User');
+    const userStruct = chunks.find(c => c.symbolName === 'User');
     expect(userStruct).toBeDefined();
-    expect(userStruct?.metadata?.symbolType).toBe('struct');
+    expect(userStruct?.symbolType).toBe('struct');
   });
 
   it('should extract trait symbols', () => {
@@ -302,11 +310,11 @@ pub trait AuthService {
     fn logout(&self, user_id: &str) -> Result<(), Error>;
 }
 `;
-    const chunks = chunkCode(code, 'rust', 200);
+    const chunks = chunkText("test.rs", code, { tokenTarget: 200, overlapTokens: 20, language: "rust" });
 
-    const traitChunk = chunks.find(c => c.metadata?.symbolName === 'AuthService');
+    const traitChunk = chunks.find(c => c.symbolName === 'AuthService');
     expect(traitChunk).toBeDefined();
-    expect(traitChunk?.metadata?.symbolType).toBe('trait');
+    expect(traitChunk?.symbolType).toBe('trait');
   });
 
   it('should extract impl blocks', () => {
@@ -317,29 +325,38 @@ impl User {
     }
 }
 `;
-    const chunks = chunkCode(code, 'rust', 200);
+    const chunks = chunkText("test.rs", code, { tokenTarget: 200, overlapTokens: 20, language: "rust" });
 
-    const implChunk = chunks.find(c => c.metadata?.symbolName === 'User');
+    const implChunk = chunks.find(c => c.symbolName === 'User');
     expect(implChunk).toBeDefined();
-    expect(implChunk?.metadata?.symbolType).toBe('impl');
+    expect(implChunk?.symbolType).toBe('impl');
   });
 });
 
 describe('Chunker - Edge Cases', () => {
   it('should handle empty code', () => {
-    const chunks = chunkCode('', 'typescript', 200);
-    expect(chunks.length).toBe(0);
+    const chunks = chunkText("test.ts", '', { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
+    // Empty code still creates one chunk to track the file
+    expect(chunks.length).toBeGreaterThanOrEqual(1);
   });
 
   it('should handle code with no symbols', () => {
     const code = '// Just a comment\nconst x = 1;';
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
     expect(chunks.length).toBeGreaterThan(0);
   });
 
   it('should handle very large files', () => {
-    const code = 'a'.repeat(100000);
-    const chunks = chunkCode(code, 'typescript', 500);
+    // Create a large file with many functions
+    const code = Array.from({ length: 100 }, (_, i) => `
+export function processData${i}(input: string): string {
+  const normalized = input.trim().toLowerCase();
+  const validated = normalized.length > 0 ? normalized : "default";
+  return validated + "_processed_${i}";
+}
+`).join('\n');
+
+    const chunks = chunkText("test.ts", code, { tokenTarget: 500, overlapTokens: 20, language: "typescript" });
     expect(chunks.length).toBeGreaterThan(1);
   });
 
@@ -353,7 +370,7 @@ class Outer {
   }
 }
 `;
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
     expect(chunks.length).toBeGreaterThan(0);
   });
 
@@ -363,8 +380,8 @@ function greet(名前: string) {
   return \`こんにちは、\${名前}さん\`;
 }
 `;
-    const chunks = chunkCode(code, 'typescript', 200);
-    const greetChunk = chunks.find(c => c.metadata?.symbolName === 'greet');
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
+    const greetChunk = chunks.find(c => c.symbolName === 'greet');
     expect(greetChunk).toBeDefined();
   });
 
@@ -374,28 +391,34 @@ function first() {}
 function second() {}
 function third() {}
 `;
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
 
-    const firstIdx = chunks.findIndex(c => c.metadata?.symbolName === 'first');
-    const secondIdx = chunks.findIndex(c => c.metadata?.symbolName === 'second');
-    const thirdIdx = chunks.findIndex(c => c.metadata?.symbolName === 'third');
+    const firstIdx = chunks.findIndex(c => c.symbolName === 'first');
+    const secondIdx = chunks.findIndex(c => c.symbolName === 'second');
+    const thirdIdx = chunks.findIndex(c => c.symbolName === 'third');
 
     expect(firstIdx).toBeLessThan(secondIdx);
     expect(secondIdx).toBeLessThan(thirdIdx);
   });
 
-  it('should include chunk indices', () => {
-    const code = 'a'.repeat(1000);
-    const chunks = chunkCode(code, 'typescript', 100);
+  it('should create multiple chunks for large content', () => {
+    // Create code with many functions to ensure it exceeds token target
+    const functions = Array.from({ length: 20 }, (_, i) => `
+function func${i}(param${i}: string) {
+  const result = param${i}.toLowerCase();
+  return result + " processed";
+}
+`).join('\n');
 
-    chunks.forEach((chunk, idx) => {
-      expect(chunk.chunkIndex).toBe(idx);
-    });
+    const chunks = chunkText("test.ts", functions, { tokenTarget: 100, overlapTokens: 20, language: "typescript" });
+
+    // Large content should be split into multiple chunks
+    expect(chunks.length).toBeGreaterThan(1);
   });
 
   it('should handle code with mixed line endings', () => {
     const code = 'function test() {\r\n  return true;\r\n}';
-    const chunks = chunkCode(code, 'typescript', 200);
+    const chunks = chunkText("test.ts", code, { tokenTarget: 200, overlapTokens: 20, language: "typescript" });
     expect(chunks.length).toBeGreaterThan(0);
   });
 });

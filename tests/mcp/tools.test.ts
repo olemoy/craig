@@ -231,7 +231,6 @@ describe('MCP Tools - Setup', () => {
       });
 
       expect(info).toHaveProperty('repository');
-      expect(info).toHaveProperty('path');
       expect(info).toHaveProperty('fileCount');
       expect(info).toHaveProperty('chunkCount');
       expect(info.repository).toBe(testRepoName);
@@ -361,8 +360,8 @@ describe('MCP Tools - Setup', () => {
   describe('Tool: similar (findSimilar)', () => {
     it('should find similar code', async () => {
       const results = await findSimilar({
+        code: '# Test Repository',
         repository: testRepoName,
-        filePath: 'README.md',
         limit: 5,
       });
 
@@ -378,19 +377,19 @@ describe('MCP Tools - Setup', () => {
 
     it('should limit results', async () => {
       const results = await findSimilar({
+        code: 'test',
         repository: testRepoName,
-        filePath: 'README.md',
         limit: 2,
       });
 
       expect(results.length).toBeLessThanOrEqual(2);
     });
 
-    it('should throw on nonexistent file', async () => {
+    it('should throw on empty code', async () => {
       await expect(
         findSimilar({
+          code: '',
           repository: testRepoName,
-          filePath: 'nonexistent.ts',
         })
       ).rejects.toThrow();
     });

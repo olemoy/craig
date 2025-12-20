@@ -28,7 +28,7 @@ function randomColor(): 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan'
 /**
  * Map database row to File type
  */
-function mapToFile(row: any): File {
+function mapToFile(row: FileRow): File {
   return {
     id: row.id as FileId,
     repository_id: row.repository_id as RepositoryId,
