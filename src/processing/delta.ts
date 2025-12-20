@@ -116,7 +116,8 @@ export async function analyzeDelta(
 
   try {
     // Check each discovered file
-    for (const filePath of discoveredFiles) {
+    for (let i = 0; i < discoveredFiles.length; i++) {
+      const filePath = discoveredFiles[i];
       try {
         const dbFile = dbFileMap.get(filePath);
 
@@ -160,6 +161,11 @@ export async function analyzeDelta(
         failed.push({ filePath, error: errorMessage });
         console.error(`⚠️  Warning: Failed to analyze file during delta analysis: ${filePath}`);
         console.error(`   Error: ${errorMessage}`);
+      }
+
+      // Yield to event loop every 10 files to keep UI responsive (spinner animation)
+      if (i % 10 === 0) {
+        await Bun.sleep(0);
       }
     }
 

@@ -353,6 +353,9 @@ export async function getFileMetadataByRepository(
           spinner.color = randomColor();
           spinner.text = `Loading file metadata (${loaded}/${totalFiles})...`;
         }
+
+        // Yield to event loop to keep spinner animation responsive
+        await Bun.sleep(0);
       }
 
       if (spinner) {
@@ -438,6 +441,9 @@ export async function getFilesByRepository(
       if (totalFiles > BATCH_SIZE) {
         console.log(`  Loaded ${Math.min(offset, totalFiles)}/${totalFiles} files...`);
       }
+
+      // Yield to event loop between batches
+      await Bun.sleep(0);
     }
 
     return allFiles;

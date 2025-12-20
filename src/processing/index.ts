@@ -143,6 +143,8 @@ export async function processDirectory(
     for (const file of delta.toDelete) {
       log(`[${fmtTime(new Date())}] Deleting: ${file.file_path}`);
       await deleteFileAndChunks(file.id);
+      // Yield to event loop to keep UI responsive
+      await Bun.sleep(0);
     }
 
     // Update modified files (delete old chunks/embeddings)
@@ -151,6 +153,8 @@ export async function processDirectory(
       if (existingFile) {
         await updateFile(existingFile.id);
       }
+      // Yield to event loop to keep UI responsive
+      await Bun.sleep(0);
     }
 
     // Only process new and modified files
@@ -288,6 +292,9 @@ export async function processDirectory(
         skippedDueToSize++;
         logger.skip(f, `File too large: ${formatFileSize(stat.size)}`);
         progress?.updateFile(f, 0);
+
+        // Yield to event loop before continuing to next file
+        await Bun.sleep(0);
         continue; // Skip this file and continue with the next one
       }
 
@@ -323,6 +330,9 @@ export async function processDirectory(
           skippedFiles++;
           logger.skip(f, warnMsg);
           progress?.updateFile(f, 0);
+
+          // Yield to event loop before continuing to next file
+          await Bun.sleep(0);
           continue;
         }
       }
@@ -368,6 +378,9 @@ export async function processDirectory(
         const duration = Date.now() - fileStartTime;
         logger.done(f, 0, duration);
         progress?.updateFile(f, 0);
+
+        // Yield to event loop after processing binary file
+        await Bun.sleep(0);
       } else {
         const txt = await readTextFile(f);
         log(`[${fmtTime(start)}] Processing: ${f}`);
@@ -406,6 +419,9 @@ export async function processDirectory(
           skippedFiles++;
           logger.skip(f, warnMsg);
           progress?.updateFile(f, 0);
+
+          // Yield to event loop before continuing to next file
+          await Bun.sleep(0);
           continue;
         }
 
@@ -500,6 +516,9 @@ export async function processDirectory(
         logger.done(f, chunks.length, duration);
         progress?.updateFile(f, chunks.length);
       }
+
+      // Yield to event loop after each file to keep UI responsive (spinner animation)
+      await Bun.sleep(0);
     } catch (e) {
       const displayPath = toRelativePath(f, repo.path);
       // Detailed error message for console
@@ -544,6 +563,9 @@ export async function processDirectory(
       totalErrors++;
       logger.error(f, e instanceof Error ? e.message : String(e));
       progress?.updateFile(f, 0);
+
+      // Yield to event loop after error handling
+      await Bun.sleep(0);
     }
   }
 
