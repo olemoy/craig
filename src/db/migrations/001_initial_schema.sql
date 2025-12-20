@@ -9,7 +9,7 @@
 -- Uses UUID for id to prevent collisions and enable distributed operation
 
 CREATE TABLE repositories (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   path TEXT NOT NULL UNIQUE,
   commit_sha TEXT,

@@ -31,14 +31,6 @@ function mapToRepository(row: RepositoryRow): Repository {
 }
 
 /**
- * Generate a new UUID for repository ID
- */
-function generateRepositoryId(): RepositoryId {
-  // Use crypto.randomUUID() for generating UUIDs
-  return crypto.randomUUID() as RepositoryId;
-}
-
-/**
  * Insert a new repository
  *
  * @param data - Repository data to insert
@@ -51,15 +43,12 @@ export async function insertRepository(
   try {
     const client = await getClient();
 
-    // Generate UUID for the repository
-    const id = generateRepositoryId();
-
+    // Let the database generate the UUID via DEFAULT gen_random_uuid()
     const result = await client.query(
-      `INSERT INTO repositories (id, name, path, commit_sha, metadata)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO repositories (name, path, commit_sha, metadata)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
       [
-        id,
         data.name,
         data.path,
         data.commit_sha ?? null,
