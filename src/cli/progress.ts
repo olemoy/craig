@@ -4,8 +4,25 @@
  */
 
 // Random color selection for spinners
-function randomColor(): 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray' {
-  const colors = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'gray'] as const;
+function randomColor():
+  | "red"
+  | "green"
+  | "yellow"
+  | "blue"
+  | "magenta"
+  | "cyan"
+  | "white"
+  | "gray" {
+  const colors = [
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "white",
+    "gray",
+  ] as const;
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
@@ -85,7 +102,9 @@ function createBarReporter(): ProgressReporter {
 
     const now = Date.now();
     const elapsed = formatDuration(now - stats.startTime);
-    const percentage = Math.round((stats.processedFiles / stats.totalFiles) * 100);
+    const percentage = Math.round(
+      (stats.processedFiles / stats.totalFiles) * 100,
+    );
     const filename = shortenFilename(stats.currentFile || "");
 
     spinner.color = randomColor();
@@ -105,13 +124,12 @@ function createBarReporter(): ProgressReporter {
 
       // Import and start spinner
       try {
-        const { default: yoctoSpinner } = await import('yocto-spinner');
-        const { dots12 } = await import('cli-spinners');
+        const { default: yoctoSpinner } = await import("yocto-spinner");
+        const { dots12 } = await import("cli-spinners");
         spinner = yoctoSpinner({
           text: `Ingesting files: 0% | 0/${totalFiles} | ⏱ 0s`,
-          indent: 2,
           spinner: dots12,
-          color: randomColor()
+          color: randomColor(),
         });
         spinner.start();
       } catch {
@@ -145,7 +163,9 @@ function createBarReporter(): ProgressReporter {
       if (spinner) {
         spinner.stop();
       }
-      console.log(`⚠ Large file detected: ${shortName} (~${estimatedChunks.toLocaleString()} chunks, may take several minutes)`);
+      console.log(
+        `⚠ Large file detected: ${shortName} (~${estimatedChunks.toLocaleString()} chunks, may take several minutes)`,
+      );
       if (spinner) {
         spinner.start();
         updateSpinnerText();
@@ -165,10 +185,14 @@ function createBarReporter(): ProgressReporter {
       isFinished = true;
 
       if (spinner) {
-        spinner.success(`Completed: ${stats.totalFiles} files | ${stats.totalChunks} chunks | ⏱ ${elapsed}`);
+        spinner.success(
+          `Completed: ${stats.totalFiles} files | ${stats.totalChunks} chunks | ⏱ ${elapsed}`,
+        );
       } else {
         console.log(`\n✓ Processing complete`);
-        console.log(`  Files processed: ${stats.processedFiles}/${stats.totalFiles}`);
+        console.log(
+          `  Files processed: ${stats.processedFiles}/${stats.totalFiles}`,
+        );
         console.log(`  Total chunks: ${stats.totalChunks}`);
         console.log(`  Total embeddings: ${stats.totalEmbeddings}`);
         console.log(`  Duration: ${elapsed}`);

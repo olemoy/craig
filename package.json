@@ -11,7 +11,6 @@
     "cli:ingest": "bun src/cli/index.ts ingest",
     "cli:list": "bun src/cli/index.ts list",
     "cli:query": "bun src/cli/index.ts query",
-    "cli:db": "bun src/cli/index.ts db",
     "mcp": "bun run src/mcp/server.ts",
     "inspect": "bunx @modelcontextprotocol/inspector bun run src/mcp/server.ts"
   },

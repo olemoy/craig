@@ -78,6 +78,9 @@ bun src/cli/index.ts stats my-project
 
 # Check database health
 bun src/cli/index.ts health check
+
+# View skipped files
+bun src/cli/index.ts ingest /path/to/repo --show-skipped
 ```
 
 ## Chunking Strategy
@@ -108,11 +111,33 @@ bun src/cli/index.ts health check
 {
   "processing": {
     "maxFileSizeBytes": 10485760,  // 10MB file size limit
+    "maxChunksPerFile": 100,        // Maximum chunks per file
     "tokenTarget": 500,             // Target chunk size
     "overlapTokens": 64             // Overlap for context
   }
 }
 ```
+
+### Handling Large Files
+
+Files exceeding size or chunk limits are tracked in the database but not indexed. Use these flags to override limits:
+
+```bash
+# View skipped files with reasons
+bun src/cli/index.ts ingest /path/to/repo --show-skipped
+
+# Force-ingest specific files (bypasses all limits)
+bun src/cli/index.ts ingest /path/to/repo --force-files package-lock.json,large-file.sql
+
+# Increase chunk limit for this run (temporary override)
+bun src/cli/index.ts ingest /path/to/repo --chunk-limit 200
+```
+
+**Skipped File Tracking:**
+- All files are tracked in the database, even if skipped
+- Skip reason and details stored in file metadata
+- Enables complete repository tree representation
+- Force-ingest updates existing skipped records
 
 ## MCP Server Integration
 
