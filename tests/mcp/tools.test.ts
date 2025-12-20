@@ -6,8 +6,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import {
-  createTestDatabase,
-  cleanupTestDatabase,
   createTestRepositoryWithData,
 } from '../db/helpers.js';
 import { initializeClient, closeClient, resetClient } from '../../src/db/client.js';
@@ -27,8 +25,11 @@ let testRepoName: string;
 
 describe('MCP Tools - Setup', () => {
   beforeEach(async () => {
-    testDb = await createTestDatabase();
-    await initializeClient(testDb);
+    resetClient();
+    testDb = await initializeClient({
+      dataDir: 'memory://',
+      autoMigrate: true,
+    });
 
     const data = await createTestRepositoryWithData(testDb);
     testRepoId = data.repositoryId;
@@ -38,7 +39,6 @@ describe('MCP Tools - Setup', () => {
   afterEach(async () => {
     await closeClient();
     resetClient();
-    await cleanupTestDatabase(testDb);
   });
 
   describe('Tool: query', () => {
